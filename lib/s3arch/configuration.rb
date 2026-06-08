@@ -45,7 +45,7 @@ module S3arch
       @token_field = 'searchTokens'
       @metadata_fields = %w[status created_at]
       @record_filter = ->(_record) { true }
-      @owner_extractor = ->(stream_record) {
+      @owner_extractor = lambda { |stream_record|
         image = stream_record.dig('dynamodb', 'NewImage') || stream_record.dig('dynamodb', 'OldImage') || {}
         image.dig(owner_key, 'S')
       }
@@ -58,10 +58,10 @@ module S3arch
 
     # Convenience: env-based configuration (reads from Lambda environment variables)
     def from_env!
-      @source_table = ENV['S3ARCH_SOURCE_TABLE'] || ENV['INVENTORY_TABLE']
+      @source_table = ENV['S3ARCH_SOURCE_TABLE'] || ENV.fetch('INVENTORY_TABLE', nil)
       @source_index = ENV['S3ARCH_SOURCE_INDEX'] || 'UserIndex'
-      @index_bucket = ENV['S3ARCH_INDEX_BUCKET'] || ENV['SEARCH_INDEX_BUCKET']
-      @version_table = ENV['S3ARCH_VERSION_TABLE'] || ENV['SEARCH_INDEX_TABLE']
+      @index_bucket = ENV['S3ARCH_INDEX_BUCKET'] || ENV.fetch('SEARCH_INDEX_BUCKET', nil)
+      @version_table = ENV['S3ARCH_VERSION_TABLE'] || ENV.fetch('SEARCH_INDEX_TABLE', nil)
       self
     end
 

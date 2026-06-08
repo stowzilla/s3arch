@@ -11,8 +11,8 @@ module S3arch
     # Accepts a record hash, returns a hash of { field => tokenized_string }
     # This is what gets stored in DynamoDB and fed directly into FTS5.
     def tokenize(record)
-      @fields.each_with_object({}) do |field, tokens|
-        tokens[field] = normalize(record[field])
+      @fields.to_h do |field|
+        [field, normalize(record[field])]
       end
     end
 

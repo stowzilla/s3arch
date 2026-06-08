@@ -72,9 +72,7 @@ module S3arch
 
     def fetch_version(owner_id)
       cached = self.class.version_cache[owner_id]
-      if cached && (Time.now - cached[:checked_at]) < @config.version_ttl
-        return cached[:version]
-      end
+      return cached[:version] if cached && (Time.now - cached[:checked_at]) < @config.version_ttl
 
       result = @dynamodb.get_item(table_name: @config.version_table,
                                   key: { @config.owner_key => owner_id },
@@ -112,6 +110,7 @@ module S3arch
       rows = db.execute(sql, [match_expr])
       rows.filter_map do |row|
         next if filters.any? { |field, value| row[field.to_s] != value }
+
         { record_id: row['record_id'], rank: row['rank'] }
       end
     rescue SQLite3::Exception => e
@@ -131,6 +130,7 @@ module S3arch
 
     def log(level, message, **data)
       return unless @config.logger
+
       @config.logger.send(level, message, **data)
     end
   end

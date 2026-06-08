@@ -107,11 +107,13 @@ module S3arch
         tokens = extract_tokens(new_image)
         record_id = extract_record_id(new_image)
         return nil unless tokens && record_id && passes_filter?(new_image)
+
         { action: :insert, record_id: record_id, tokens: tokens, meta: extract_meta(new_image) }
       when 'REMOVE'
         tokens = extract_tokens(old_image)
         record_id = extract_record_id(old_image)
         return nil unless tokens && record_id
+
         { action: :delete, record_id: record_id, tokens: tokens }
       when 'MODIFY'
         old_tokens = extract_tokens(old_image)
@@ -126,28 +128,34 @@ module S3arch
 
         # If item previously didn't pass filter (no old tokens), treat as insert
         unless old_tokens
-          return new_tokens ? { action: :insert, record_id: record_id, tokens: new_tokens, meta: extract_meta(new_image) } : nil
+          return new_tokens ? { action: :insert, record_id: record_id, tokens: new_tokens,
+                                meta: extract_meta(new_image) } : nil
         end
 
         return nil unless new_tokens
-        { action: :update, record_id: record_id, old_tokens: old_tokens, new_tokens: new_tokens, meta: extract_meta(new_image) }
+
+        { action: :update, record_id: record_id, old_tokens: old_tokens, new_tokens: new_tokens,
+          meta: extract_meta(new_image) }
       end
     end
 
     def extract_owner(image)
       return nil unless image
+
       val = image[@config.owner_key]
       val.is_a?(Hash) ? val['S'] : val
     end
 
     def extract_record_id(image)
       return nil unless image
+
       val = image['id']
       val.is_a?(Hash) ? val['S'] : val
     end
 
     def extract_tokens(image)
       return nil unless image
+
       val = image[@config.token_field]
       return nil unless val
 
@@ -156,8 +164,6 @@ module S3arch
         val['M'].transform_values { |v| v.is_a?(Hash) ? (v['S'] || '') : v.to_s }
       elsif val.is_a?(Hash) && !val.key?('S')
         val.transform_values { |v| v.is_a?(Hash) ? (v['S'] || '') : v.to_s }
-      else
-        nil
       end
     end
 
@@ -199,12 +205,14 @@ module S3arch
       fts_cols = @config.searchable_fields
       fts_values = fts_cols.map { |f| tokens[f] || '' }
       placeholders = (['?'] * (fts_values.size + 1)).join(', ')
-      db.execute("INSERT INTO records_fts(rowid, #{fts_cols.join(', ')}) VALUES (#{placeholders})", [rowid] + fts_values)
+      db.execute("INSERT INTO records_fts(rowid, #{fts_cols.join(', ')}) VALUES (#{placeholders})",
+                 [rowid] + fts_values)
 
       meta ||= {}
       meta_values = [rowid, record_id] + @config.metadata_fields.map { |f| meta[f] || '' }
       meta_placeholders = (['?'] * meta_values.size).join(', ')
-      db.execute("INSERT INTO records_meta(rowid, record_id, #{@config.metadata_fields.join(', ')}) VALUES (#{meta_placeholders})", meta_values)
+      meta_cols = "rowid, record_id, #{@config.metadata_fields.join(', ')}"
+      db.execute("INSERT INTO records_meta(#{meta_cols}) VALUES (#{meta_placeholders})", meta_values)
     end
 
     def delete_row(db, rowid, tokens)
@@ -212,7 +220,9 @@ module S3arch
       fts_values = fts_cols.map { |f| tokens[f] || '' }
       placeholders = (['?'] * (fts_values.size + 1)).join(', ')
       # FTS5 contentless delete: INSERT with special 'delete' command
-      db.execute("INSERT INTO records_fts(records_fts, rowid, #{fts_cols.join(', ')}) VALUES ('delete', #{placeholders})", [rowid] + fts_values)
+      fts_delete_sql = "INSERT INTO records_fts(records_fts, rowid, #{fts_cols.join(', ')}) " \
+                       "VALUES ('delete', #{placeholders})"
+      db.execute(fts_delete_sql, [rowid] + fts_values)
       db.execute('DELETE FROM records_meta WHERE rowid = ?', [rowid])
     end
 
@@ -244,11 +254,14 @@ module S3arch
         result = @dynamodb.query(params)
         result.items.each do |item|
           next unless @config.record_filter.call(item)
+
           tokens = item[@config.token_field]
           next unless tokens.is_a?(Hash) && tokens.any?
+
           records << { 'id' => item['id'], 'tokens' => tokens, 'meta' => extract_meta_from_item(item) }
         end
         break unless result.last_evaluated_key
+
         params[:exclusive_start_key] = result.last_evaluated_key
       end
 
@@ -256,8 +269,8 @@ module S3arch
     end
 
     def extract_meta_from_item(item)
-      @config.metadata_fields.each_with_object({}) do |field, meta|
-        meta[field] = item[field].to_s
+      @config.metadata_fields.to_h do |field|
+        [field, item[field].to_s]
       end
     end
 
@@ -267,7 +280,7 @@ module S3arch
     end
 
     def build_database(db_path, records)
-      File.delete(db_path) if File.exist?(db_path)
+      FileUtils.rm_f(db_path)
       db = SQLite3::Database.new(db_path)
 
       fts_cols = @config.searchable_fields.join(', ')
@@ -289,7 +302,8 @@ module S3arch
 
           meta_values = [rowid, record['id']] + @config.metadata_fields.map { |f| record['meta'][f] || '' }
           meta_placeholders = (['?'] * meta_values.size).join(', ')
-          db.execute("INSERT INTO records_meta(rowid, record_id, #{@config.metadata_fields.join(', ')}) VALUES (#{meta_placeholders})", meta_values)
+          meta_cols = "rowid, record_id, #{@config.metadata_fields.join(', ')}"
+          db.execute("INSERT INTO records_meta(#{meta_cols}) VALUES (#{meta_placeholders})", meta_values)
         end
       end
 
@@ -304,13 +318,15 @@ module S3arch
       @dynamodb.update_item(
         table_name: @config.version_table,
         key: { @config.owner_key => owner_id },
-        update_expression: 'SET version = if_not_exists(version, :zero) + :one, updated_at = :now, record_count = :count',
+        update_expression: 'SET version = if_not_exists(version, :zero) + :one, ' \
+                           'updated_at = :now, record_count = :count',
         expression_attribute_values: { ':zero' => 0, ':one' => 1, ':now' => Time.now.iso8601, ':count' => record_count }
       )
     end
 
     def log(level, message, **data)
       return unless @config.logger
+
       @config.logger.send(level, message, **data)
     end
   end
