@@ -2,13 +2,47 @@
 
 module S3arch
   class Configuration
-    attr_accessor :source_table, :source_index, :owner_key, :index_bucket, :version_table,
-                  :searchable_fields, :metadata_fields, :record_filter, :owner_extractor,
-                  :logger, :version_ttl, :max_results, :max_cached_dbs, :ephemeral_storage_mb
+    # DynamoDB table that contains the source records to index
+    attr_accessor :source_table
+
+    # DynamoDB index to query records by owner (e.g., 'UserIndex')
+    attr_accessor :source_index
+
+    # Partition key field on the source table for owner lookup
+    attr_accessor :owner_key
+
+    # S3 bucket for storing SQLite index files
+    attr_accessor :index_bucket
+
+    # DynamoDB table for version tracking
+    attr_accessor :version_table
+
+    # FTS5 searchable fields — array of field names from the source record
+    attr_accessor :searchable_fields
+
+    # DynamoDB attribute name where pre-computed tokens are stored (Map type)
+    # e.g., { "searchTokens": { "name": "blue jacket", "description": "warm winter coat" } }
+    attr_accessor :token_field
+
+    # Metadata fields stored alongside FTS5 for filtering (not searched)
+    attr_accessor :metadata_fields
+
+    # Filter proc — receives a record hash, returns true to include in index
+    attr_accessor :record_filter
+
+    # Owner extractor — proc that extracts owner_id from a DynamoDB stream record
+    attr_accessor :owner_extractor
+
+    # Logger (defaults to $stdout)
+    attr_accessor :logger
+
+    # Searcher settings
+    attr_accessor :version_ttl, :max_results, :max_cached_dbs, :ephemeral_storage_mb
 
     def initialize
       @owner_key = 'user_id'
       @searchable_fields = %w[name description]
+      @token_field = 'searchTokens'
       @metadata_fields = %w[status created_at]
       @record_filter = ->(_record) { true }
       @owner_extractor = ->(stream_record) {
@@ -22,11 +56,12 @@ module S3arch
       @logger = nil
     end
 
+    # Convenience: env-based configuration (reads from Lambda environment variables)
     def from_env!
-      @source_table = ENV['S3ARCH_SOURCE_TABLE']
+      @source_table = ENV['S3ARCH_SOURCE_TABLE'] || ENV['INVENTORY_TABLE']
       @source_index = ENV['S3ARCH_SOURCE_INDEX'] || 'UserIndex'
-      @index_bucket = ENV['S3ARCH_INDEX_BUCKET']
-      @version_table = ENV['S3ARCH_VERSION_TABLE']
+      @index_bucket = ENV['S3ARCH_INDEX_BUCKET'] || ENV['SEARCH_INDEX_BUCKET']
+      @version_table = ENV['S3ARCH_VERSION_TABLE'] || ENV['SEARCH_INDEX_TABLE']
       self
     end
 
