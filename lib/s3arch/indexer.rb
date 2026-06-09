@@ -4,7 +4,6 @@ require 'aws-sdk-dynamodb'
 require 'aws-sdk-s3'
 require 'sqlite3'
 require 'json'
-
 module S3arch
   # Builds SQLite FTS5 databases per owner from pre-computed tokens stored in DynamoDB.
   # The indexer never sees raw content — only tokens. Supports incremental updates via
@@ -79,6 +78,8 @@ module S3arch
 
       { statusCode: 200, body: JSON.generate(rebuilt: grouped.size) }
     end
+
+    RESERVED_WORDS = Set.new(%w[status name comment count size type]).freeze
 
     private
 
@@ -244,11 +245,7 @@ module S3arch
     # Full rebuild: fetches token field from DynamoDB (never reads content)
     def fetch_records(owner_id)
       records = []
-      fields_to_project = ['id', @config.token_field, @config.owner_key] + @config.metadata_fields + filter_fields
-      params = { table_name: @config.source_table, index_name: @config.source_index,
-                 key_condition_expression: "#{@config.owner_key} = :owner",
-                 expression_attribute_values: { ':owner' => owner_id },
-                 projection_expression: fields_to_project.uniq.join(', ') }
+      params = build_query_params(owner_id)
 
       loop do
         result = @dynamodb.query(params)
@@ -268,16 +265,28 @@ module S3arch
       records
     end
 
-    def extract_meta_from_item(item)
-      @config.metadata_fields.to_h do |field|
-        [field, item[field].to_s]
-      end
+    def build_query_params(owner_id)
+      fields = (['id', @config.token_field, @config.owner_key] +
+                @config.metadata_fields + @config.filter_fields).uniq
+      expression_names = {}
+      projected = fields.map { |f| reserved_word?(f) ? "##{f}".tap { |p| expression_names[p] = f } : f }
+
+      owner_placeholder = reserved_word?(@config.owner_key) ? "##{@config.owner_key}" : @config.owner_key
+      expression_names["##{@config.owner_key}"] = @config.owner_key if reserved_word?(@config.owner_key)
+
+      params = { table_name: @config.source_table, index_name: @config.source_index,
+                 key_condition_expression: "#{owner_placeholder} = :owner",
+                 expression_attribute_values: { ':owner' => owner_id },
+                 projection_expression: projected.join(', ') }
+      params[:expression_attribute_names] = expression_names if expression_names.any?
+      params
     end
 
-    def filter_fields
-      # Fields needed by the record_filter (best-effort — add status/bin_id for default filter)
-      %w[status bin_id]
+    def extract_meta_from_item(item)
+      @config.metadata_fields.to_h { |field| [field, item[field].to_s] }
     end
+
+    def reserved_word?(field) = RESERVED_WORDS.include?(field.downcase)
 
     def build_database(db_path, records)
       FileUtils.rm_f(db_path)

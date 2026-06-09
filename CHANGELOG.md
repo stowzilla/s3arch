@@ -1,5 +1,19 @@
 # Changelog
 
+## [0.0.4] - 2025-06-09
+
+### Fixed
+
+- `Indexer#fetch_records` now uses `expression_attribute_names` for DynamoDB reserved words (e.g., `status`), fixing `ValidationException` on `rebuild()`
+
+### Added
+
+- `Configuration#filter_fields` — declare which fields the `record_filter` proc needs projected from DynamoDB
+
+### Removed
+
+- Hardcoded `filter_fields` method (`%w[status bin_id]`) — replaced by configurable `filter_fields`
+
 ## [0.0.2] - 2025-06-08
 
 ### Added
