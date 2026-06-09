@@ -18,6 +18,15 @@ RSpec.describe S3arch::Dashboard::Application do
     end
   end
 
+  describe '#routes' do
+    it 'returns route definitions for Dispatcher mount DSL' do
+      expect(app.routes).to eq([
+        { method: :get, path: '/' },
+        { method: :post, path: '/rebuild' }
+      ])
+    end
+  end
+
   describe 'GET /' do
     it 'renders the index page' do
       dynamodb = instance_double(Aws::DynamoDB::Client)

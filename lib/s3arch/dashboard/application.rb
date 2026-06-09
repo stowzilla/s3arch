@@ -9,6 +9,13 @@ module S3arch
     class Application
       VIEWS_PATH = File.expand_path('views', __dir__)
 
+      def routes
+        [
+          { method: :get, path: '/' },
+          { method: :post, path: '/rebuild' }
+        ]
+      end
+
       def call(env)
         req = Rack::Request.new(env)
         path = req.path_info.sub(%r{^/}, '')
