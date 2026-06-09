@@ -30,6 +30,9 @@ module S3arch
     # Filter proc — receives a record hash, returns true to include in index
     attr_accessor :record_filter
 
+    # Fields needed by the record_filter for projection (e.g., %w[status])
+    attr_accessor :filter_fields
+
     # Owner extractor — proc that extracts owner_id from a DynamoDB stream record
     attr_accessor :owner_extractor
 
@@ -45,6 +48,7 @@ module S3arch
       @token_field = 'searchTokens'
       @metadata_fields = %w[status created_at]
       @record_filter = ->(_record) { true }
+      @filter_fields = %w[status]
       @owner_extractor = lambda { |stream_record|
         image = stream_record.dig('dynamodb', 'NewImage') || stream_record.dig('dynamodb', 'OldImage') || {}
         image.dig(owner_key, 'S')
