@@ -22,9 +22,9 @@ module S3arch
         path = req.path_info.sub(%r{^/}, '')
 
         case [req.request_method, path]
-        when ['GET', ''], ['GET', 'index']
+        when ['GET', ''], %w[GET index]
           index(req)
-        when ['POST', 'rebuild']
+        when %w[POST rebuild]
           rebuild(req)
         else
           [404, { 'content-type' => 'text/plain' }, ['Not Found']]
@@ -46,7 +46,7 @@ module S3arch
           indexer = S3arch::Indexer.new
           indexer.rebuild(owner_id)
         end
-        [303, { 'location' => req.script_name.to_s + '/' }, []]
+        [303, { 'location' => "#{req.script_name}/" }, []]
       end
 
       def fetch_owners
@@ -63,14 +63,15 @@ module S3arch
           params[:exclusive_start_key] = result.last_evaluated_key
         end
 
-        items.map do |item|
+        owners = items.map do |item|
           {
             owner_id: item[config.owner_key] || item.values.first,
             version: item['version'],
             record_count: item['record_count'],
             updated_at: item['updated_at']
           }
-        end.sort_by { |o| o[:updated_at].to_s }.reverse
+        end
+        owners.sort_by { |o| o[:updated_at].to_s }.reverse
       rescue StandardError => e
         @error = e.message
         []

@@ -2,7 +2,6 @@
 
 require 'spec_helper'
 require 'rack/test'
-require 'ostruct'
 
 RSpec.describe S3arch::Dashboard::Application do
   include Rack::Test::Methods
@@ -21,9 +20,9 @@ RSpec.describe S3arch::Dashboard::Application do
   describe '#routes' do
     it 'returns route definitions for Dispatcher mount DSL' do
       expect(app.routes).to eq([
-        { method: :get, path: '/' },
-        { method: :post, path: '/rebuild' }
-      ])
+                                 { method: :get, path: '/' },
+                                 { method: :post, path: '/rebuild' }
+                               ])
     end
   end
 
@@ -31,10 +30,9 @@ RSpec.describe S3arch::Dashboard::Application do
     it 'renders the index page' do
       dynamodb = instance_double(Aws::DynamoDB::Client)
       allow(Aws::DynamoDB::Client).to receive(:new).and_return(dynamodb)
-      allow(dynamodb).to receive(:scan).and_return(
-        OpenStruct.new(items: [{ 'user_id' => 'user-1', 'version' => 3, 'record_count' => 42,
-                                 'updated_at' => '2026-01-01T00:00:00Z' }], last_evaluated_key: nil)
-      )
+      scan_result = double(items: [{ 'user_id' => 'user-1', 'version' => 3, 'record_count' => 42,
+                                     'updated_at' => '2026-01-01T00:00:00Z' }], last_evaluated_key: nil)
+      allow(dynamodb).to receive(:scan).and_return(scan_result)
 
       get '/'
       expect(last_response.status).to eq(200)
