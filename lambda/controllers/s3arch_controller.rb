@@ -3,8 +3,6 @@
 require 'aws-sdk-dynamodb'
 
 class S3archController < BeltController::Base
-  skip_before_action :authenticate!, only: %i[index rebuild]
-
   def index
     owners = fetch_owners
     success_response(owners: owners)
@@ -16,7 +14,12 @@ class S3archController < BeltController::Base
     owner_id = params['owner_id']&.strip
     return error_response('owner_id is required', 400) if owner_id.nil? || owner_id.empty?
 
-    S3arch::Indexer.new.rebuild(owner_id)
+    handler = S3arch.configuration.rebuild_handler
+    if handler
+      handler.call(owner_id)
+    else
+      S3arch::Indexer.new.rebuild(owner_id)
+    end
     success_response(status: 'ok', owner_id: owner_id)
   rescue StandardError => e
     error_response("Failed to rebuild index: #{e.message}", 500)

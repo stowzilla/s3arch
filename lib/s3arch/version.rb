@@ -1,5 +1,5 @@
 # frozen_string_literal: true
 
 module S3arch
-  VERSION = '0.0.4'
+  VERSION = '0.0.6.alpha'
 end

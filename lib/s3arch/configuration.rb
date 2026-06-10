@@ -42,6 +42,11 @@ module S3arch
     # Searcher settings
     attr_accessor :version_ttl, :max_results, :max_cached_dbs, :ephemeral_storage_mb
 
+    # Custom rebuild handler — proc/lambda that receives owner_id.
+    # When set, the controller uses this instead of calling Indexer.new.rebuild directly.
+    # Useful for triggering rebuilds via Lambda invocation instead of in-process.
+    attr_accessor :rebuild_handler
+
     def initialize
       @owner_key = 'user_id'
       @searchable_fields = %w[name description]
