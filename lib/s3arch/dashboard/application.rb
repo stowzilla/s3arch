@@ -9,6 +9,7 @@ module S3arch
     class Application
       VIEWS_PATH = File.expand_path('views', __dir__)
 
+      # Dispatcher mount DSL contract — keep in sync with #call dispatch below.
       def routes
         [
           { method: :get, path: '/' },
