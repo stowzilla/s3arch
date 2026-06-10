@@ -4,29 +4,26 @@ require 'aws-sdk-dynamodb'
 
 module S3arch
   module Dashboard
-    # Mixin for Lambda controllers. Include in your ApplicationController subclass:
-    #
-    #   class S3archController < BaseController
-    #     include S3arch::Dashboard::Controller
-    #   end
-    #
-    # Provides #index and #rebuild actions that return JSON via success_response/error_response.
-    module Controller
+    # Controller for the s3arch dashboard, inherits from BeltController::Base.
+    # Belt must be loaded before this file is required.
+    class S3archController < BeltController::Base
+      skip_before_action :authenticate!, only: %i[index rebuild]
+
       def index
         owners = fetch_owners
         success_response(owners: owners)
       rescue StandardError => e
-        error_response("Failed to load s3arch dashboard: #{e.message}")
+        error_response("Failed to load s3arch dashboard: #{e.message}", 500)
       end
 
       def rebuild
         owner_id = params['owner_id']&.strip
-        return error_response('owner_id is required') if owner_id.nil? || owner_id.empty?
+        return error_response('owner_id is required', 400) if owner_id.nil? || owner_id.empty?
 
         S3arch::Indexer.new.rebuild(owner_id)
         success_response(status: 'ok', owner_id: owner_id)
       rescue StandardError => e
-        error_response("Failed to rebuild index: #{e.message}")
+        error_response("Failed to rebuild index: #{e.message}", 500)
       end
 
       private
@@ -35,14 +32,14 @@ module S3arch
         dynamodb = Aws::DynamoDB::Client.new
         config = S3arch.configuration
         items = []
-        params = { table_name: config.version_table }
+        scan_params = { table_name: config.version_table }
 
         loop do
-          result = dynamodb.scan(params)
+          result = dynamodb.scan(scan_params)
           items.concat(result.items)
           break unless result.last_evaluated_key
 
-          params[:exclusive_start_key] = result.last_evaluated_key
+          scan_params[:exclusive_start_key] = result.last_evaluated_key
         end
 
         owners = items.map do |item|

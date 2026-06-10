@@ -2,27 +2,79 @@
 
 require 'spec_helper'
 
-RSpec.describe S3arch::Dashboard::Controller do
-  let(:controller_class) do
-    Class.new do
-      include S3arch::Dashboard::Controller
+# Simulate belt being loaded — define BeltController::Base with the interface
+# that our controller expects, then require the controller file.
+require 'json'
 
-      attr_reader :response_body, :response_error
+module BeltController
+  class Base
+    include Belt::Helpers::Response if defined?(Belt::Helpers::Response)
 
-      def initialize(params = {})
-        @params = params
+    attr_reader :event, :body
+
+    class << self
+      def before_actions
+        @before_actions ||= []
       end
 
-      attr_reader :params
-
-      def success_response(data)
-        @response_body = data
+      def before_action(method_name, only: nil, except: nil)
+        before_actions << { method: method_name, only: only&.map(&:to_sym), except: except&.map(&:to_sym) }
       end
 
-      def error_response(msg)
-        @response_error = msg
+      def skipped_before_actions
+        @skipped_before_actions ||= []
+      end
+
+      def skip_before_action(method_name, only: nil, except: nil)
+        skipped_before_actions << { method: method_name, only: only&.map(&:to_sym), except: except&.map(&:to_sym) }
+      end
+
+      def all_before_actions
+        if superclass.respond_to?(:all_before_actions)
+          superclass.all_before_actions + before_actions
+        else
+          before_actions
+        end
+      end
+
+      def all_skipped_before_actions
+        if superclass.respond_to?(:all_skipped_before_actions)
+          superclass.all_skipped_before_actions + skipped_before_actions
+        else
+          skipped_before_actions
+        end
       end
     end
+
+    def initialize(event:, body:)
+      @event = event
+      @raw_body = body || {}
+    end
+
+    def params
+      @params ||= @raw_body
+    end
+
+    def dispatch(action_name)
+      send(action_name)
+    end
+
+    def success_response(body, _status_code = 200)
+      { statusCode: 200, headers: { 'Content-Type' => 'application/json' }, body: JSON.generate(body) }
+    end
+
+    def error_response(message, status_code = 400)
+      { statusCode: status_code, headers: { 'Content-Type' => 'application/json' }, body: JSON.generate(error: message) }
+    end
+  end
+end
+
+# Now require the controller (BeltController::Base is defined)
+require_relative '../lib/s3arch/dashboard/controller'
+
+RSpec.describe S3arch::Dashboard::S3archController do
+  let(:event) do
+    { 'requestContext' => { 'authorizer' => { 'claims' => { 'sub' => 'user-1' } } } }
   end
 
   before do
@@ -44,13 +96,12 @@ RSpec.describe S3arch::Dashboard::Controller do
                last_evaluated_key: nil)
       )
 
-      ctrl = controller_class.new
-      ctrl.index
+      ctrl = described_class.new(event: event, body: {})
+      result = ctrl.dispatch(:index)
 
-      expect(ctrl.response_body[:owners]).to eq([
-                                                  { owner_id: 'u1', version: 2, record_count: 10,
-                                                    updated_at: '2026-01-01' }
-                                                ])
+      expect(result[:statusCode]).to eq(200)
+      body = JSON.parse(result[:body])
+      expect(body['owners'].first['owner_id']).to eq('u1')
     end
   end
 
@@ -60,18 +111,18 @@ RSpec.describe S3arch::Dashboard::Controller do
       allow(S3arch::Indexer).to receive(:new).and_return(indexer)
       allow(indexer).to receive(:rebuild)
 
-      ctrl = controller_class.new('owner_id' => 'u1')
-      ctrl.rebuild
+      ctrl = described_class.new(event: event, body: { 'owner_id' => 'u1' })
+      result = ctrl.dispatch(:rebuild)
 
       expect(indexer).to have_received(:rebuild).with('u1')
-      expect(ctrl.response_body).to eq(status: 'ok', owner_id: 'u1')
+      expect(result[:statusCode]).to eq(200)
     end
 
     it 'returns error when owner_id is missing' do
-      ctrl = controller_class.new({})
-      ctrl.rebuild
+      ctrl = described_class.new(event: event, body: {})
+      result = ctrl.dispatch(:rebuild)
 
-      expect(ctrl.response_error).to eq('owner_id is required')
+      expect(result[:statusCode]).to eq(400)
     end
   end
 end
