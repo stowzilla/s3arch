@@ -3,6 +3,7 @@
 require 'json'
 require 'erb'
 require_relative 'dashboard/application'
+require_relative 'dashboard/controller'
 
 module S3arch
   module Dashboard
