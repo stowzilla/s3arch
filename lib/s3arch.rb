@@ -6,6 +6,7 @@ require_relative 's3arch/tokenizer'
 require_relative 's3arch/indexer'
 require_relative 's3arch/searcher'
 require_relative 's3arch/handler'
+require_relative 's3arch/routes'
 require_relative 's3arch/dashboard'
 
 module S3arch
