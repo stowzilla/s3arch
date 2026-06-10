@@ -11,6 +11,3 @@ module S3arch
     end
   end
 end
-
-# Load the BeltController-based controller only when belt is available
-require_relative 'dashboard/controller' if defined?(BeltController::Base)

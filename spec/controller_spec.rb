@@ -64,15 +64,16 @@ module BeltController
     end
 
     def error_response(message, status_code = 400)
-      { statusCode: status_code, headers: { 'Content-Type' => 'application/json' }, body: JSON.generate(error: message) }
+      { statusCode: status_code, headers: { 'Content-Type' => 'application/json' },
+        body: JSON.generate(error: message) }
     end
   end
 end
 
 # Now require the controller (BeltController::Base is defined)
-require_relative '../lib/s3arch/dashboard/controller'
+require_relative '../lambda/controllers/s3arch_controller'
 
-RSpec.describe S3arch::Dashboard::S3archController do
+RSpec.describe S3archController do
   let(:event) do
     { 'requestContext' => { 'authorizer' => { 'claims' => { 'sub' => 'user-1' } } } }
   end

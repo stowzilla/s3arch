@@ -9,8 +9,7 @@ Gem::Specification.new do |spec|
   spec.email   = ['adam@stowzilla.com']
 
   spec.summary     = 'SQLite FTS5 full-text search for DynamoDB on AWS Lambda'
-  spec.description = 'Per-owner SQLite FTS5 indexes stored on S3, queried from Lambda /tmp. ' \
-                     'DynamoDB source records are indexed via streams, with version tracking and LRU caching.'
+  spec.description = 'Per-owner SQLite FTS5 indexes stored on S3, queried from Lambda /tmp with version tracking.'
   spec.homepage    = 'https://github.com/stowzilla/s3arch'
   spec.license     = 'MIT'
 
@@ -20,7 +19,8 @@ Gem::Specification.new do |spec|
   signing_key_path = File.expand_path('~/.ssh/gem-private_key.pem')
   spec.signing_key = signing_key_path if File.exist?(signing_key_path)
 
-  spec.files = Dir['lib/**/*', 'README.md', 'LICENSE.txt', 'CHANGELOG.md', 'certs/*']
+  spec.files = Dir['lib/**/*', 'lambda/**/*', 'infrastructure/**/*', 'README.md', 'LICENSE.txt', 'CHANGELOG.md',
+                   'certs/*']
   spec.require_paths = ['lib']
 
   spec.add_dependency 'aws-sdk-dynamodb', '~> 1.0'

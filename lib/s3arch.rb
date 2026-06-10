@@ -9,6 +9,9 @@ require_relative 's3arch/handler'
 require_relative 's3arch/routes'
 require_relative 's3arch/dashboard'
 
+# Register as a Belt holster when Belt is loaded
+require_relative 's3arch/holster' if defined?(Belt::Holster)
+
 module S3arch
   class Error < StandardError; end
 
