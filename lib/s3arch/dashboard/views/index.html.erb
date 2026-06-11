@@ -79,16 +79,24 @@
   <%- end -%>
 
   <script>
+    function getIdToken() {
+      try {
+        for (var i = 0; i < localStorage.length; i++) {
+          var key = localStorage.key(i);
+          if (key && key.indexOf('.idToken') !== -1) return localStorage.getItem(key);
+        }
+      } catch(e) {}
+      return null;
+    }
+
     function rebuild(ownerId, btn) {
       btn.disabled = true;
       btn.textContent = 'Rebuilding\u2026';
       var headers = { 'Content-Type': 'application/json' };
-      var authMeta = document.querySelector('meta[name="authorization"]');
-      if (authMeta) headers['Authorization'] = authMeta.content;
-      var baseMeta = document.querySelector('meta[name="api-base"]');
-      var base = baseMeta ? baseMeta.content : window.location.pathname.replace(/\/$/, '');
+      var token = getIdToken();
+      if (token) headers['Authorization'] = 'Bearer ' + token;
 
-      fetch(base + '/rebuild', {
+      fetch(window.location.pathname.replace(/\/$/, '') + '/rebuild', {
         method: 'POST',
         headers: headers,
         body: JSON.stringify({ owner_id: ownerId })
