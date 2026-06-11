@@ -6,6 +6,8 @@ require 'spec_helper'
 module Belt
   class Holster
     class << self
+      attr_writer :gem_root
+
       def gem_root
         @gem_root ||= File.expand_path('../..', caller_locations(1, 1).first.path)
       end

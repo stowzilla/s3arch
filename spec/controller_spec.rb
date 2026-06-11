@@ -8,8 +8,6 @@ require 'json'
 
 module BeltController
   class Base
-    include Belt::Helpers::Response if defined?(Belt::Helpers::Response)
-
     attr_reader :event, :body
 
     class << self
@@ -67,6 +65,10 @@ module BeltController
       { statusCode: status_code, headers: { 'Content-Type' => 'application/json' },
         body: JSON.generate(error: message) }
     end
+
+    def html_response(html, status_code = 200)
+      { statusCode: status_code, headers: { 'Content-Type' => 'text/html; charset=utf-8' }, body: html }
+    end
   end
 end
 
@@ -89,7 +91,7 @@ RSpec.describe S3archController do
   end
 
   describe '#index' do
-    it 'returns owners from the version table' do
+    it 'returns HTML dashboard with owner data' do
       dynamodb = instance_double(Aws::DynamoDB::Client)
       allow(Aws::DynamoDB::Client).to receive(:new).and_return(dynamodb)
       allow(dynamodb).to receive(:scan).and_return(
@@ -101,8 +103,20 @@ RSpec.describe S3archController do
       result = ctrl.dispatch(:index)
 
       expect(result[:statusCode]).to eq(200)
-      body = JSON.parse(result[:body])
-      expect(body['owners'].first['owner_id']).to eq('u1')
+      expect(result[:headers]['Content-Type']).to eq('text/html; charset=utf-8')
+      expect(result[:body]).to include('u1')
+      expect(result[:body]).to include('S3arch Dashboard')
+      expect(result[:body]).to include('Recreate SQLite')
+    end
+
+    it 'renders error in HTML on failure' do
+      allow(Aws::DynamoDB::Client).to receive(:new).and_raise(StandardError, 'connection failed')
+
+      ctrl = described_class.new(event: event, body: {})
+      result = ctrl.dispatch(:index)
+
+      expect(result[:statusCode]).to eq(500)
+      expect(result[:body]).to include('connection failed')
     end
   end
 

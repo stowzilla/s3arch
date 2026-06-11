@@ -5,22 +5,28 @@
   <style>
     * { box-sizing: border-box; margin: 0; padding: 0; }
     body { font-family: -apple-system, BlinkMacSystemFont, "Segoe UI", Roboto, sans-serif; background: #f5f5f5; color: #333; padding: 2rem; }
-    h1 { margin-bottom: 1.5rem; }
+    h1 { margin-bottom: 1.5rem; font-size: 1.5rem; }
     .error { background: #fee; border: 1px solid #fcc; padding: 0.75rem; border-radius: 4px; margin-bottom: 1rem; color: #c00; }
+    .success { background: #efe; border: 1px solid #cfc; padding: 0.75rem; border-radius: 4px; margin-bottom: 1rem; color: #060; display: none; }
     table { width: 100%; border-collapse: collapse; background: #fff; border-radius: 6px; overflow: hidden; box-shadow: 0 1px 3px rgba(0,0,0,0.1); }
     th, td { padding: 0.75rem 1rem; text-align: left; border-bottom: 1px solid #eee; }
-    th { background: #fafafa; font-weight: 600; }
-    form.inline { display: inline; }
-    button { background: #2563eb; color: #fff; border: none; padding: 0.4rem 0.8rem; border-radius: 4px; cursor: pointer; font-size: 0.85rem; }
-    button:hover { background: #1d4ed8; }
-    .rebuild-all { margin-bottom: 1rem; }
-    .rebuild-all button { background: #dc2626; }
-    .rebuild-all button:hover { background: #b91c1c; }
+    th { background: #fafafa; font-weight: 600; font-size: 0.85rem; text-transform: uppercase; letter-spacing: 0.03em; color: #555; }
+    tr:last-child td { border-bottom: none; }
+    tr:hover td { background: #f9fafb; }
+    .btn { border: none; padding: 0.4rem 0.8rem; border-radius: 4px; cursor: pointer; font-size: 0.85rem; font-weight: 500; transition: background 0.15s; }
+    .btn-rebuild { background: #2563eb; color: #fff; }
+    .btn-rebuild:hover { background: #1d4ed8; }
+    .btn-rebuild:disabled { background: #93c5fd; cursor: not-allowed; }
+    .owner-id { font-family: "SF Mono", SFMono-Regular, Consolas, monospace; font-size: 0.8rem; }
     .empty { padding: 2rem; text-align: center; color: #666; }
+    .meta { font-size: 0.85rem; color: #666; margin-bottom: 1rem; }
   </style>
 </head>
 <body>
   <h1>S3arch Dashboard</h1>
+  <p class="meta"><%= @owners.size %> indexed owner<%= @owners.size == 1 ? '' : 's' %></p>
+
+  <div id="flash" class="success"></div>
 
   <%- if @error -%>
   <div class="error"><strong>Error:</strong> <%= @error %></div>
@@ -40,15 +46,12 @@
     <tbody>
       <%- @owners.each do |owner| -%>
       <tr>
-        <td><%= owner[:owner_id] %></td>
+        <td class="owner-id"><%= owner[:owner_id] %></td>
         <td><%= owner[:version] %></td>
         <td><%= owner[:record_count] || '—' %></td>
         <td><%= owner[:updated_at] || '—' %></td>
         <td>
-          <form class="inline" method="post" action="<%= @env['SCRIPT_NAME'] %>/rebuild">
-            <input type="hidden" name="owner_id" value="<%= owner[:owner_id] %>">
-            <button type="submit">Rebuild</button>
-          </form>
+          <button class="btn btn-rebuild" onclick="rebuild('<%= owner[:owner_id] %>', this)">Recreate SQLite</button>
         </td>
       </tr>
       <%- end -%>
@@ -57,5 +60,43 @@
   <%- else -%>
   <div class="empty">No indexed owners found.</div>
   <%- end -%>
+
+  <script>
+    function rebuild(ownerId, btn) {
+      btn.disabled = true;
+      btn.textContent = 'Rebuilding…';
+      var headers = { 'Content-Type': 'application/json' };
+      var authMeta = document.querySelector('meta[name="authorization"]');
+      if (authMeta) headers['Authorization'] = authMeta.content;
+      var baseMeta = document.querySelector('meta[name="api-base"]');
+      var base = baseMeta ? baseMeta.content : window.location.pathname.replace(/\/$/, '');
+
+      fetch(base + '/rebuild', {
+        method: 'POST',
+        headers: headers,
+        body: JSON.stringify({ owner_id: ownerId })
+      }).then(function(r) { return r.json(); }).then(function(data) {
+        btn.textContent = 'Recreate SQLite';
+        btn.disabled = false;
+        var flash = document.getElementById('flash');
+        if (data.status === 'ok') {
+          flash.className = 'success';
+          flash.textContent = 'Rebuild triggered for ' + ownerId;
+          flash.style.display = 'block';
+        } else {
+          flash.className = 'error';
+          flash.textContent = data.error || 'Rebuild failed';
+          flash.style.display = 'block';
+        }
+      }).catch(function(e) {
+        btn.textContent = 'Recreate SQLite';
+        btn.disabled = false;
+        var flash = document.getElementById('flash');
+        flash.className = 'error';
+        flash.textContent = 'Request failed: ' + e.message;
+        flash.style.display = 'block';
+      });
+    }
+  </script>
 </body>
 </html>
