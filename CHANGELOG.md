@@ -1,5 +1,23 @@
 # Changelog
 
+## [0.0.5] - 2025-06-12
+
+### Added
+
+- `S3arch::Dashboard` — mountable Rack application for viewing index stats (records, versions, owner counts)
+- `S3arch::Dashboard::Application` — ERB-rendered HTML dashboard with mobile-friendly layout
+- `S3arch::Holster` — Belt holster integration for convention-over-configuration mounting
+- `S3arch::Routes` — Dispatcher mount DSL compatibility (`#routes` method)
+- `S3arch::Web` — lightweight Rack entry point for Lambda integration
+- `S3archController` — Belt controller for dashboard with Cognito auth gate
+- `Configuration#dashboard_auth` — configurable authentication for dashboard access
+- localStorage-based auth for CloudFront same-origin serving
+
+### Changed
+
+- Dashboard renders HTML via ERB instead of JSON
+- Scientific notation fix for large record/version numbers in dashboard
+
 ## [0.0.4] - 2025-06-09
 
 ### Fixed
