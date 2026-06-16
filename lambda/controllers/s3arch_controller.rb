@@ -41,13 +41,14 @@ class S3archController < BeltController::Base
       scan_params[:exclusive_start_key] = result.last_evaluated_key
     end
 
-    items.map do |item|
+    owners = items.map do |item|
       {
         owner_id: item[config.owner_key] || item.values.first,
         version: item['version'],
         record_count: item['record_count'],
         updated_at: item['updated_at']
       }
-    end.sort_by { |o| o[:updated_at].to_s }.reverse
+    end
+    owners.sort_by { |o| o[:updated_at].to_s }.reverse
   end
 end
