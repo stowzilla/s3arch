@@ -1,11 +1,10 @@
 # frozen_string_literal: true
 
 # Lightweight S3arch load for web/API contexts (no SQLite dependency).
-# Provides configuration, holster registration, and routes only.
+# Provides configuration and routes only.
 require_relative 'version'
 require_relative 'configuration'
 require_relative 'routes'
-require_relative 'holster'
 
 module S3arch
   class Error < StandardError; end
