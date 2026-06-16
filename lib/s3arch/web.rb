@@ -6,12 +6,6 @@ require_relative 'version'
 require_relative 'configuration'
 require_relative 'routes'
 
-# Register controllers and models with Belt when Belt is loaded
-if defined?(Belt)
-  Belt.register_controllers(File.expand_path('../../lambda/controllers', __dir__))
-  Belt.register_models(File.expand_path('../../lambda/models', __dir__))
-end
-
 module S3arch
   class Error < StandardError; end
 
