@@ -7,10 +7,11 @@ require_relative 's3arch/indexer'
 require_relative 's3arch/searcher'
 require_relative 's3arch/handler'
 require_relative 's3arch/routes'
-require_relative 's3arch/dashboard'
 
-# Register as a Belt holster when Belt is loaded
-require_relative 's3arch/holster' if defined?(Belt::Holster)
+# Register controllers with Belt when Belt is loaded
+if defined?(Belt)
+  Belt.register_controllers(File.expand_path('../../lambda/controllers', __dir__))
+end
 
 module S3arch
   class Error < StandardError; end

@@ -1,20 +1,13 @@
 # frozen_string_literal: true
 
-require 'erb'
 require 'aws-sdk-dynamodb'
 
 class S3archController < BeltController::Base
-  VIEWS_PATH = File.expand_path('../../lib/s3arch/dashboard/views', __dir__)
-
   def index
-    @owners = fetch_owners
-    html = render_erb('index')
-    html_response(html)
+    owners = fetch_owners
+    success_response(owners: owners)
   rescue StandardError => e
-    @error = e.message
-    @owners = []
-    html = render_erb('index')
-    html_response(html, 500)
+    error_response("Failed to load owners: #{e.message}", 500)
   end
 
   def rebuild
@@ -48,19 +41,13 @@ class S3archController < BeltController::Base
       scan_params[:exclusive_start_key] = result.last_evaluated_key
     end
 
-    owners = items.map do |item|
+    items.map do |item|
       {
         owner_id: item[config.owner_key] || item.values.first,
         version: item['version'],
         record_count: item['record_count'],
         updated_at: item['updated_at']
       }
-    end
-    owners.sort_by { |o| o[:updated_at].to_s }.reverse
-  end
-
-  def render_erb(template)
-    path = File.join(VIEWS_PATH, "#{template}.html.erb")
-    ERB.new(File.read(path), trim_mode: '-').result(binding)
+    end.sort_by { |o| o[:updated_at].to_s }.reverse
   end
 end
