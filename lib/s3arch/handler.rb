@@ -4,7 +4,11 @@ module S3arch
   module Handler
     class << self
       def indexer(event)
-        S3arch::Indexer.new.process_event(event)
+        if event['action'] == 'rebuild'
+          S3arch::Indexer.new.rebuild(event['owner_id'])
+        else
+          S3arch::Indexer.new.process_event(event)
+        end
       end
 
       def search(event)
