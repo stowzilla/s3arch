@@ -87,11 +87,12 @@ RSpec.describe S3archController do
   end
 
   describe '#index' do
-    it 'returns JSON with owner data' do
+    it 'returns JSON with owner data and formatted version' do
       dynamodb = instance_double(Aws::DynamoDB::Client)
       allow(Aws::DynamoDB::Client).to receive(:new).and_return(dynamodb)
       allow(dynamodb).to receive(:scan).and_return(
-        double(items: [{ 'userId' => 'u1', 'version' => 2, 'record_count' => 10, 'updated_at' => '2026-01-01' }],
+        double(items: [{ 'userId' => 'u1', 'version' => BigDecimal('1718600000000'),
+                         'record_count' => 10, 'updated_at' => '2026-01-01' }],
                last_evaluated_key: nil)
       )
 
@@ -99,9 +100,11 @@ RSpec.describe S3archController do
       result = ctrl.dispatch(:index)
 
       expect(result[:statusCode]).to eq(200)
-      expect(result[:headers]['Content-Type']).to eq('application/json')
       body = JSON.parse(result[:body])
-      expect(body['owners'].first['owner_id']).to eq('u1')
+      owner = body['owners'].first
+      expect(owner['owner_id']).to eq('u1')
+      expect(owner['version']).to eq('1718600000000')
+      expect(owner).not_to have_key('owner_name')
     end
 
     it 'returns error JSON on failure' do

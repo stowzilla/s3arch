@@ -44,11 +44,17 @@ class S3archController < BeltController::Base
     owners = items.map do |item|
       {
         owner_id: item[config.owner_key] || item.values.first,
-        version: item['version'],
+        version: format_version(item['version']),
         record_count: item['record_count'],
         updated_at: item['updated_at']
       }
     end
     owners.sort_by { |o| o[:updated_at].to_s }.reverse
+  end
+
+  def format_version(version)
+    return version unless version
+
+    version.to_i.to_s
   end
 end
