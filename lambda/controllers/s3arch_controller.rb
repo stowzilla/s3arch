@@ -41,29 +41,15 @@ class S3archController < BeltController::Base
       scan_params[:exclusive_start_key] = result.last_evaluated_key
     end
 
-    owner_ids = items.map { |item| item[config.owner_key] || item.values.first }
-    names = resolve_owner_names(owner_ids)
-
     owners = items.map do |item|
-      owner_id = item[config.owner_key] || item.values.first
       {
-        owner_id: owner_id,
-        owner_name: names.dig(owner_id, :name),
+        owner_id: item[config.owner_key] || item.values.first,
         version: format_version(item['version']),
         record_count: item['record_count'],
         updated_at: item['updated_at']
       }
     end
     owners.sort_by { |o| o[:updated_at].to_s }.reverse
-  end
-
-  def resolve_owner_names(owner_ids)
-    resolver = S3arch.configuration.owner_name_resolver
-    return {} unless resolver
-
-    resolver.call(owner_ids)
-  rescue StandardError
-    {}
   end
 
   def format_version(version)

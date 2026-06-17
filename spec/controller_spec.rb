@@ -87,7 +87,7 @@ RSpec.describe S3archController do
   end
 
   describe '#index' do
-    it 'returns JSON with owner data including resolved names' do
+    it 'returns JSON with owner data and formatted version' do
       dynamodb = instance_double(Aws::DynamoDB::Client)
       allow(Aws::DynamoDB::Client).to receive(:new).and_return(dynamodb)
       allow(dynamodb).to receive(:scan).and_return(
@@ -95,7 +95,6 @@ RSpec.describe S3archController do
                          'record_count' => 10, 'updated_at' => '2026-01-01' }],
                last_evaluated_key: nil)
       )
-      S3arch.configuration.owner_name_resolver = ->(_ids) { { 'u1' => { name: 'Alice' } } }
 
       ctrl = described_class.new(event: event, body: {})
       result = ctrl.dispatch(:index)
@@ -104,8 +103,8 @@ RSpec.describe S3archController do
       body = JSON.parse(result[:body])
       owner = body['owners'].first
       expect(owner['owner_id']).to eq('u1')
-      expect(owner['owner_name']).to eq('Alice')
       expect(owner['version']).to eq('1718600000000')
+      expect(owner).not_to have_key('owner_name')
     end
 
     it 'returns error JSON on failure' do
