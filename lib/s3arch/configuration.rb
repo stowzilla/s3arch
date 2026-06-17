@@ -47,6 +47,11 @@ module S3arch
     # Useful for triggering rebuilds via Lambda invocation instead of in-process.
     attr_accessor :rebuild_handler
 
+    # Owner name resolver — proc that receives an array of owner_ids,
+    # returns a hash: { owner_id => { name: "Display Name" } }
+    # Used by the dashboard controller to show human-readable names.
+    attr_accessor :owner_name_resolver
+
     def initialize
       @owner_key = 'user_id'
       @searchable_fields = %w[name description]
