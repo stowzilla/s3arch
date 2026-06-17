@@ -4,11 +4,15 @@ require 'aws-sdk-dynamodb'
 require 'aws-sdk-s3'
 require 'sqlite3'
 require 'json'
+require_relative 'indexer/stream_parser'
+
 module S3arch
   # Builds SQLite FTS5 databases per owner from pre-computed tokens stored in DynamoDB.
   # The indexer never sees raw content — only tokens. Supports incremental updates via
   # DynamoDB Stream events (INSERT/MODIFY/REMOVE).
   class Indexer
+    include StreamParser
+
     def initialize(config: S3arch.configuration)
       config.validate!
       @config = config
@@ -83,104 +87,6 @@ module S3arch
 
     private
 
-    def group_changes(sqs_records)
-      grouped = Hash.new { |h, k| h[k] = [] }
-
-      sqs_records.each do |sqs_record|
-        stream_record = JSON.parse(sqs_record['body'])
-        event_name = stream_record['eventName']
-        new_image = stream_record.dig('dynamodb', 'NewImage')
-        old_image = stream_record.dig('dynamodb', 'OldImage')
-
-        owner_id = extract_owner(new_image || old_image)
-        next unless owner_id
-
-        change = build_change(event_name, new_image, old_image)
-        grouped[owner_id] << change if change
-      end
-
-      grouped
-    end
-
-    def build_change(event_name, new_image, old_image)
-      case event_name
-      when 'INSERT'
-        tokens = extract_tokens(new_image)
-        record_id = extract_record_id(new_image)
-        return nil unless tokens && record_id && passes_filter?(new_image)
-
-        { action: :insert, record_id: record_id, tokens: tokens, meta: extract_meta(new_image) }
-      when 'REMOVE'
-        tokens = extract_tokens(old_image)
-        record_id = extract_record_id(old_image)
-        return nil unless tokens && record_id
-
-        { action: :delete, record_id: record_id, tokens: tokens }
-      when 'MODIFY'
-        old_tokens = extract_tokens(old_image)
-        new_tokens = extract_tokens(new_image)
-        record_id = extract_record_id(new_image)
-        return nil unless record_id
-
-        # If item no longer passes filter, treat as delete
-        unless passes_filter?(new_image)
-          return old_tokens ? { action: :delete, record_id: record_id, tokens: old_tokens } : nil
-        end
-
-        # If item previously didn't pass filter (no old tokens), treat as insert
-        unless old_tokens
-          return new_tokens ? { action: :insert, record_id: record_id, tokens: new_tokens,
-                                meta: extract_meta(new_image) } : nil
-        end
-
-        return nil unless new_tokens
-
-        { action: :update, record_id: record_id, old_tokens: old_tokens, new_tokens: new_tokens,
-          meta: extract_meta(new_image) }
-      end
-    end
-
-    def extract_owner(image)
-      return nil unless image
-
-      val = image[@config.owner_key]
-      val.is_a?(Hash) ? val['S'] : val
-    end
-
-    def extract_record_id(image)
-      return nil unless image
-
-      val = image['id']
-      val.is_a?(Hash) ? val['S'] : val
-    end
-
-    def extract_tokens(image)
-      return nil unless image
-
-      val = image[@config.token_field]
-      return nil unless val
-
-      # Token field is a DynamoDB Map: { "M": { "name": { "S": "..." }, "description": { "S": "..." } } }
-      if val.is_a?(Hash) && val.key?('M')
-        val['M'].transform_values { |v| v.is_a?(Hash) ? (v['S'] || '') : v.to_s }
-      elsif val.is_a?(Hash) && !val.key?('S')
-        val.transform_values { |v| v.is_a?(Hash) ? (v['S'] || '') : v.to_s }
-      end
-    end
-
-    def extract_meta(image)
-      @config.metadata_fields.each_with_object({}) do |field, meta|
-        val = image[field]
-        meta[field] = val.is_a?(Hash) ? (val['S'] || val['N'] || '') : val.to_s
-      end
-    end
-
-    def passes_filter?(image)
-      # Convert DynamoDB image to plain hash for filter
-      plain = image.transform_values { |v| v.is_a?(Hash) ? (v['S'] || v['N'] || v['BOOL']&.to_s || '') : v }
-      @config.record_filter.call(plain)
-    end
-
     def apply_change(db, change)
       case change[:action]
       when :insert
@@ -252,7 +158,7 @@ module S3arch
         result.items.each do |item|
           next unless @config.record_filter.call(item)
 
-          tokens = item[@config.token_field]
+          tokens = extract_tokens_from_item(item)
           next unless tokens.is_a?(Hash) && tokens.any?
 
           records << { 'id' => item['id'], 'tokens' => tokens, 'meta' => extract_meta_from_item(item) }
@@ -265,9 +171,21 @@ module S3arch
       records
     end
 
+    def extract_tokens_from_item(item)
+      # Try the dedicated token field first
+      tokens = item[@config.token_field]
+      return tokens if tokens.is_a?(Hash) && tokens.any?
+
+      # Fall back: synthesize tokens from searchable_fields directly
+      @config.searchable_fields.each_with_object({}) do |field, map|
+        val = item[field]
+        map[field] = val.to_s if val
+      end
+    end
+
     def build_query_params(owner_id)
       fields = (['id', @config.token_field, @config.owner_key] +
-                @config.metadata_fields + @config.filter_fields).uniq
+                @config.searchable_fields + @config.metadata_fields + @config.filter_fields).compact.uniq
       expression_names = {}
       projected = fields.map { |f| reserved_word?(f) ? "##{f}".tap { |p| expression_names[p] = f } : f }
 
