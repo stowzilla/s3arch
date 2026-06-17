@@ -252,7 +252,7 @@ module S3arch
         result.items.each do |item|
           next unless @config.record_filter.call(item)
 
-          tokens = item[@config.token_field]
+          tokens = extract_tokens_from_item(item)
           next unless tokens.is_a?(Hash) && tokens.any?
 
           records << { 'id' => item['id'], 'tokens' => tokens, 'meta' => extract_meta_from_item(item) }
@@ -265,9 +265,21 @@ module S3arch
       records
     end
 
+    def extract_tokens_from_item(item)
+      # Try the dedicated token field first
+      tokens = item[@config.token_field]
+      return tokens if tokens.is_a?(Hash) && tokens.any?
+
+      # Fall back: synthesize tokens from searchable_fields directly
+      @config.searchable_fields.each_with_object({}) do |field, map|
+        val = item[field]
+        map[field] = val.to_s if val
+      end
+    end
+
     def build_query_params(owner_id)
       fields = (['id', @config.token_field, @config.owner_key] +
-                @config.metadata_fields + @config.filter_fields).uniq
+                @config.searchable_fields + @config.metadata_fields + @config.filter_fields).compact.uniq
       expression_names = {}
       projected = fields.map { |f| reserved_word?(f) ? "##{f}".tap { |p| expression_names[p] = f } : f }
 
