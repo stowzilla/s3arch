@@ -3,6 +3,7 @@
 require_relative 's3arch/version'
 require_relative 's3arch/configuration'
 require_relative 's3arch/tokenizer'
+require_relative 's3arch/store'
 require_relative 's3arch/indexer'
 require_relative 's3arch/searcher'
 require_relative 's3arch/handler'
