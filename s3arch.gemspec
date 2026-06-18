@@ -25,6 +25,7 @@ Gem::Specification.new do |spec|
 
   spec.add_dependency 'aws-sdk-dynamodb', '~> 1.0'
   spec.add_dependency 'aws-sdk-s3', '~> 1.0'
+  spec.add_dependency 'belt', '~> 0.0'
   spec.add_dependency 'rack', '>= 2.0'
   spec.add_dependency 'sqlite3', '~> 2.0'
 
