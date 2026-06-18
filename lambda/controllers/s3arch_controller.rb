@@ -20,6 +20,7 @@ class S3archController < BeltController::Base
     else
       S3arch::Indexer.new.rebuild(owner_id)
     end
+
     success_response(status: 'ok', owner_id: owner_id)
   rescue StandardError => e
     error_response("Failed to rebuild index: #{e.message}", 500)

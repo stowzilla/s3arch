@@ -1,5 +1,18 @@
 # Changelog
 
+## [0.1.0] - 2026-06-18
+
+### Added
+
+- `S3arch::Store` — thin adapter layer encapsulating all DynamoDB/S3 operations (fetch records, upload/download indexes, version tracking). Indexer and Searcher accept an injected `store:` parameter for testability.
+- `S3arch::Models::SearchVersion` — lightweight model for the version tracking table with `.all`, `.find`, `.increment!`, and `#to_h`
+- Comprehensive unit specs (84 examples): Tokenizer, Indexer, Searcher, StreamParser, Handler, Store, SearchVersion
+
+### Changed
+
+- `Indexer` and `Searcher` no longer call AWS SDKs directly — delegated to `Store`
+- `S3archController` simplified to use `SearchVersion.all` instead of inline DynamoDB scanning
+
 ## [0.0.5] - 2025-06-12
 
 ### Added
