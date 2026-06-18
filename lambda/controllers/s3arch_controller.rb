@@ -1,11 +1,11 @@
 # frozen_string_literal: true
 
-require 'aws-sdk-dynamodb'
+require_relative '../models/search_version'
 
 class S3archController < BeltController::Base
   def index
-    owners = fetch_owners
-    success_response(owners: owners)
+    versions = S3arch::Models::SearchVersion.all
+    success_response(owners: versions.map(&:to_h))
   rescue StandardError => e
     error_response("Failed to load owners: #{e.message}", 500)
   end
@@ -20,41 +20,9 @@ class S3archController < BeltController::Base
     else
       S3arch::Indexer.new.rebuild(owner_id)
     end
+
     success_response(status: 'ok', owner_id: owner_id)
   rescue StandardError => e
     error_response("Failed to rebuild index: #{e.message}", 500)
-  end
-
-  private
-
-  def fetch_owners
-    dynamodb = Aws::DynamoDB::Client.new
-    config = S3arch.configuration
-    items = []
-    scan_params = { table_name: config.version_table }
-
-    loop do
-      result = dynamodb.scan(scan_params)
-      items.concat(result.items)
-      break unless result.last_evaluated_key
-
-      scan_params[:exclusive_start_key] = result.last_evaluated_key
-    end
-
-    owners = items.map do |item|
-      {
-        owner_id: item[config.owner_key] || item.values.first,
-        version: format_version(item['version']),
-        record_count: item['record_count'],
-        updated_at: item['updated_at']
-      }
-    end
-    owners.sort_by { |o| o[:updated_at].to_s }.reverse
-  end
-
-  def format_version(version)
-    return version unless version
-
-    version.to_i.to_s
   end
 end
