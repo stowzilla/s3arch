@@ -1,7 +1,5 @@
 # frozen_string_literal: true
 
-require 'aws-sdk-dynamodb'
-require 'aws-sdk-s3'
 require 'sqlite3'
 
 module S3arch
@@ -18,11 +16,10 @@ module S3arch
       end
     end
 
-    def initialize(config: S3arch.configuration)
+    def initialize(config: S3arch.configuration, store: nil)
       config.validate!
       @config = config
-      @dynamodb = Aws::DynamoDB::Client.new
-      @s3 = Aws::S3::Client.new
+      @store = store || Store.new(config: config)
     end
 
     def search(query:, owner_ids:, filters: {})
@@ -74,23 +71,18 @@ module S3arch
       cached = self.class.version_cache[owner_id]
       return cached[:version] if cached && (Time.now - cached[:checked_at]) < @config.version_ttl
 
-      result = @dynamodb.get_item(table_name: @config.version_table,
-                                  key: { @config.owner_key => owner_id },
-                                  projection_expression: 'version')
-      version = result.item&.dig('version')
+      version = @store.fetch_version(owner_id)
       self.class.version_cache[owner_id] = { version: version, checked_at: Time.now } if version
       version
     end
 
     def download_database(owner_id)
       db_path = "/tmp/s3arch_#{owner_id}.sqlite3"
-      @s3.get_object(bucket: @config.index_bucket, key: "#{owner_id}/index.sqlite3",
-                     response_target: db_path)
+      return nil unless @store.download_index(owner_id, db_path)
+
       db = SQLite3::Database.new(db_path)
       db.results_as_hash = true
       db
-    rescue Aws::S3::Errors::NoSuchKey
-      nil
     end
 
     def query_fts(db, query, filters: {})

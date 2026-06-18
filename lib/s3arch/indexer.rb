@@ -1,7 +1,5 @@
 # frozen_string_literal: true
 
-require 'aws-sdk-dynamodb'
-require 'aws-sdk-s3'
 require 'sqlite3'
 require 'json'
 require_relative 'indexer/stream_parser'
@@ -13,22 +11,20 @@ module S3arch
   class Indexer
     include StreamParser
 
-    def initialize(config: S3arch.configuration)
+    def initialize(config: S3arch.configuration, store: nil)
       config.validate!
       @config = config
-      @dynamodb = Aws::DynamoDB::Client.new
-      @s3 = Aws::S3::Client.new
+      @store = store || Store.new(config: config)
     end
 
     # Full rebuild — pulls all tokens from DynamoDB for an owner.
-    # Used for initial backfill or when incremental isn't possible.
     def rebuild(owner_id)
-      records = fetch_records(owner_id)
+      records = @store.fetch_records(owner_id)
       db_path = "/tmp/s3arch_#{owner_id}.sqlite3"
 
       build_database(db_path, records)
-      upload(owner_id, db_path)
-      increment_version(owner_id, records.size)
+      @store.upload_index(owner_id, db_path)
+      @store.increment_version(owner_id, records.size)
 
       log(:info, 'Index rebuilt', owner_id: owner_id, record_count: records.size)
     ensure
@@ -36,12 +32,10 @@ module S3arch
     end
 
     # Incremental update — applies INSERT/DELETE/UPDATE to an existing index.
-    # Downloads current DB from S3, applies changes, re-uploads.
     def apply_changes(owner_id, changes)
       db_path = "/tmp/s3arch_#{owner_id}.sqlite3"
-      download_existing(owner_id, db_path)
 
-      unless File.exist?(db_path)
+      unless @store.download_index(owner_id, db_path)
         log(:info, 'No existing index, doing full rebuild', owner_id: owner_id)
         return rebuild(owner_id)
       end
@@ -56,8 +50,8 @@ module S3arch
       record_count = db.get_first_value('SELECT COUNT(*) FROM records_meta')
       db.close
 
-      upload(owner_id, db_path)
-      increment_version(owner_id, record_count)
+      @store.upload_index(owner_id, db_path)
+      @store.increment_version(owner_id, record_count)
 
       log(:info, 'Index updated incrementally', owner_id: owner_id, changes: changes.size, record_count: record_count)
     ensure
@@ -65,7 +59,6 @@ module S3arch
     end
 
     # Process SQS event containing DynamoDB stream records.
-    # Groups by owner and applies incremental changes.
     def process_event(event)
       sqs_records = event['Records'] || []
       grouped = group_changes(sqs_records)
@@ -83,8 +76,6 @@ module S3arch
       { statusCode: 200, body: JSON.generate(rebuilt: grouped.size) }
     end
 
-    RESERVED_WORDS = Set.new(%w[status name comment count size type]).freeze
-
     private
 
     def apply_change(db, change)
@@ -101,7 +92,6 @@ module S3arch
           delete_row(db, rowid, change[:old_tokens])
           insert_row(db, rowid, change[:record_id], change[:new_tokens], change[:meta])
         else
-          # Record wasn't in index yet, just insert
           new_rowid = next_rowid(db)
           insert_row(db, new_rowid, change[:record_id], change[:new_tokens], change[:meta])
         end
@@ -126,7 +116,6 @@ module S3arch
       fts_cols = @config.searchable_fields
       fts_values = fts_cols.map { |f| tokens[f] || '' }
       placeholders = (['?'] * (fts_values.size + 1)).join(', ')
-      # FTS5 contentless delete: INSERT with special 'delete' command
       fts_delete_sql = "INSERT INTO records_fts(records_fts, rowid, #{fts_cols.join(', ')}) " \
                        "VALUES ('delete', #{placeholders})"
       db.execute(fts_delete_sql, [rowid] + fts_values)
@@ -141,70 +130,6 @@ module S3arch
       max = db.get_first_value('SELECT MAX(rowid) FROM records_meta')
       (max || 0) + 1
     end
-
-    def download_existing(owner_id, db_path)
-      @s3.get_object(bucket: @config.index_bucket, key: "#{owner_id}/index.sqlite3", response_target: db_path)
-    rescue Aws::S3::Errors::NoSuchKey
-      # No existing index — caller will fall back to rebuild
-    end
-
-    # Full rebuild: fetches token field from DynamoDB (never reads content)
-    def fetch_records(owner_id)
-      records = []
-      params = build_query_params(owner_id)
-
-      loop do
-        result = @dynamodb.query(params)
-        result.items.each do |item|
-          next unless @config.record_filter.call(item)
-
-          tokens = extract_tokens_from_item(item)
-          next unless tokens.is_a?(Hash) && tokens.any?
-
-          records << { 'id' => item['id'], 'tokens' => tokens, 'meta' => extract_meta_from_item(item) }
-        end
-        break unless result.last_evaluated_key
-
-        params[:exclusive_start_key] = result.last_evaluated_key
-      end
-
-      records
-    end
-
-    def extract_tokens_from_item(item)
-      # Try the dedicated token field first
-      tokens = item[@config.token_field]
-      return tokens if tokens.is_a?(Hash) && tokens.any?
-
-      # Fall back: synthesize tokens from searchable_fields directly
-      @config.searchable_fields.each_with_object({}) do |field, map|
-        val = item[field]
-        map[field] = val.to_s if val
-      end
-    end
-
-    def build_query_params(owner_id)
-      fields = (['id', @config.token_field, @config.owner_key] +
-                @config.searchable_fields + @config.metadata_fields + @config.filter_fields).compact.uniq
-      expression_names = {}
-      projected = fields.map { |f| reserved_word?(f) ? "##{f}".tap { |p| expression_names[p] = f } : f }
-
-      owner_placeholder = reserved_word?(@config.owner_key) ? "##{@config.owner_key}" : @config.owner_key
-      expression_names["##{@config.owner_key}"] = @config.owner_key if reserved_word?(@config.owner_key)
-
-      params = { table_name: @config.source_table, index_name: @config.source_index,
-                 key_condition_expression: "#{owner_placeholder} = :owner",
-                 expression_attribute_values: { ':owner' => owner_id },
-                 projection_expression: projected.join(', ') }
-      params[:expression_attribute_names] = expression_names if expression_names.any?
-      params
-    end
-
-    def extract_meta_from_item(item)
-      @config.metadata_fields.to_h { |field| [field, item[field].to_s] }
-    end
-
-    def reserved_word?(field) = RESERVED_WORDS.include?(field.downcase)
 
     def build_database(db_path, records)
       FileUtils.rm_f(db_path)
@@ -235,20 +160,6 @@ module S3arch
       end
 
       db.close
-    end
-
-    def upload(owner_id, db_path)
-      @s3.put_object(bucket: @config.index_bucket, key: "#{owner_id}/index.sqlite3", body: File.open(db_path, 'rb'))
-    end
-
-    def increment_version(owner_id, record_count)
-      @dynamodb.update_item(
-        table_name: @config.version_table,
-        key: { @config.owner_key => owner_id },
-        update_expression: 'SET version = if_not_exists(version, :zero) + :one, ' \
-                           'updated_at = :now, record_count = :count',
-        expression_attribute_values: { ':zero' => 0, ':one' => 1, ':now' => Time.now.iso8601, ':count' => record_count }
-      )
     end
 
     def log(level, message, **data)
