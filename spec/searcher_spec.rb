@@ -29,7 +29,11 @@ RSpec.describe S3arch::Searcher do
 
   after do
     described_class.reset!
-    Dir.glob('/tmp/s3arch_*.sqlite3').each { |f| File.delete(f) rescue nil }
+    Dir.glob('/tmp/s3arch_*.sqlite3').each do |f|
+      File.delete(f)
+    rescue StandardError
+      nil
+    end
   end
 
   def create_test_db(owner_id, records)
@@ -67,10 +71,12 @@ RSpec.describe S3arch::Searcher do
     context 'with a valid database' do
       before do
         db_path = create_test_db('owner-1', [
-          { id: 'item-1', name: 'blue chair', description: 'comfortable seating', status: 'active' },
-          { id: 'item-2', name: 'red table', description: 'wooden dining table', status: 'active' },
-          { id: 'item-3', name: 'blue lamp', description: 'bright light', status: 'archived' }
-        ])
+                                   { id: 'item-1', name: 'blue chair', description: 'comfortable seating',
+                                     status: 'active' },
+                                   { id: 'item-2', name: 'red table', description: 'wooden dining table',
+                                     status: 'active' },
+                                   { id: 'item-3', name: 'blue lamp', description: 'bright light', status: 'archived' }
+                                 ])
 
         allow(dynamodb).to receive(:get_item).and_return(double(item: { 'version' => 1 }))
         allow(s3).to receive(:get_object) do |args|

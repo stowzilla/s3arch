@@ -31,7 +31,8 @@ RSpec.describe S3arch::Store do
   describe '#fetch_records' do
     it 'queries DynamoDB and returns parsed records' do
       items = [
-        { 'id' => 'item-1', 'userId' => 'owner-1', 'searchTokens' => { 'name' => 'blue chair', 'description' => 'comfy' }, 'status' => 'active' }
+        { 'id' => 'item-1', 'userId' => 'owner-1',
+          'searchTokens' => { 'name' => 'blue chair', 'description' => 'comfy' }, 'status' => 'active' }
       ]
       allow(dynamodb).to receive(:query).and_return(double(items: items, last_evaluated_key: nil))
 
@@ -58,7 +59,8 @@ RSpec.describe S3arch::Store do
     end
 
     it 'falls back to searchable_fields when token_field is absent' do
-      items = [{ 'id' => 'item-1', 'userId' => 'owner-1', 'name' => 'jacket', 'description' => 'warm', 'status' => 'active' }]
+      items = [{ 'id' => 'item-1', 'userId' => 'owner-1', 'name' => 'jacket', 'description' => 'warm',
+                 'status' => 'active' }]
       allow(dynamodb).to receive(:query).and_return(double(items: items, last_evaluated_key: nil))
 
       records = store.fetch_records('owner-1')
@@ -67,8 +69,10 @@ RSpec.describe S3arch::Store do
     end
 
     it 'paginates through all results' do
-      page1 = double(items: [{ 'id' => 'i1', 'searchTokens' => { 'name' => 'a' }, 'status' => '' }], last_evaluated_key: { 'id' => 'i1' })
-      page2 = double(items: [{ 'id' => 'i2', 'searchTokens' => { 'name' => 'b' }, 'status' => '' }], last_evaluated_key: nil)
+      page1 = double(items: [{ 'id' => 'i1', 'searchTokens' => { 'name' => 'a' }, 'status' => '' }],
+                     last_evaluated_key: { 'id' => 'i1' })
+      page2 = double(items: [{ 'id' => 'i2', 'searchTokens' => { 'name' => 'b' }, 'status' => '' }],
+                     last_evaluated_key: nil)
       allow(dynamodb).to receive(:query).and_return(page1, page2)
 
       records = store.fetch_records('owner-1')
@@ -89,7 +93,7 @@ RSpec.describe S3arch::Store do
                                                       bucket: 'test-bucket', key: 'owner-1/index.sqlite3'
                                                     ))
     ensure
-      File.delete(db_path) if File.exist?(db_path)
+      FileUtils.rm_f(db_path)
     end
   end
 

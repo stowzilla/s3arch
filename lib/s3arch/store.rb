@@ -69,9 +69,9 @@ module S3arch
       )
     end
 
-    private
-
     RESERVED_WORDS = Set.new(%w[status name comment count size type]).freeze
+
+    private
 
     def index_key(owner_id) = "#{owner_id}/index.sqlite3"
 

@@ -19,6 +19,7 @@ RSpec.describe S3arch::Indexer::StreamParser do
     # Use a simple object with the module included and @config set
     klass = Class.new do
       include S3arch::Indexer::StreamParser
+
       attr_accessor :config
 
       def initialize(config)
@@ -34,14 +35,20 @@ RSpec.describe S3arch::Indexer::StreamParser do
   describe '#group_changes' do
     it 'groups INSERT events by owner' do
       sqs_records = [
-        { 'body' => JSON.generate('eventName' => 'INSERT', 'dynamodb' => {
-          'NewImage' => { 'id' => { 'S' => 'i1' }, 'userId' => { 'S' => 'o1' },
-                          'searchTokens' => { 'M' => { 'name' => { 'S' => 'test' } } }, 'status' => { 'S' => 'active' } }
-        }) },
-        { 'body' => JSON.generate('eventName' => 'INSERT', 'dynamodb' => {
-          'NewImage' => { 'id' => { 'S' => 'i2' }, 'userId' => { 'S' => 'o1' },
-                          'searchTokens' => { 'M' => { 'name' => { 'S' => 'other' } } }, 'status' => { 'S' => 'active' } }
-        }) }
+        { 'body' => JSON.generate(
+          'eventName' => 'INSERT', 'dynamodb' => {
+            'NewImage' => { 'id' => { 'S' => 'i1' }, 'userId' => { 'S' => 'o1' },
+                            'searchTokens' => { 'M' => { 'name' => { 'S' => 'test' } } },
+                            'status' => { 'S' => 'active' } }
+          }
+        ) },
+        { 'body' => JSON.generate(
+          'eventName' => 'INSERT', 'dynamodb' => {
+            'NewImage' => { 'id' => { 'S' => 'i2' }, 'userId' => { 'S' => 'o1' },
+                            'searchTokens' => { 'M' => { 'name' => { 'S' => 'other' } } },
+                            'status' => { 'S' => 'active' } }
+          }
+        ) }
       ]
 
       grouped = parser_instance.group_changes(sqs_records)
@@ -52,14 +59,20 @@ RSpec.describe S3arch::Indexer::StreamParser do
 
     it 'separates changes by different owners' do
       sqs_records = [
-        { 'body' => JSON.generate('eventName' => 'INSERT', 'dynamodb' => {
-          'NewImage' => { 'id' => { 'S' => 'i1' }, 'userId' => { 'S' => 'o1' },
-                          'searchTokens' => { 'M' => { 'name' => { 'S' => 'a' } } }, 'status' => { 'S' => 'active' } }
-        }) },
-        { 'body' => JSON.generate('eventName' => 'INSERT', 'dynamodb' => {
-          'NewImage' => { 'id' => { 'S' => 'i2' }, 'userId' => { 'S' => 'o2' },
-                          'searchTokens' => { 'M' => { 'name' => { 'S' => 'b' } } }, 'status' => { 'S' => 'active' } }
-        }) }
+        { 'body' => JSON.generate(
+          'eventName' => 'INSERT', 'dynamodb' => {
+            'NewImage' => { 'id' => { 'S' => 'i1' }, 'userId' => { 'S' => 'o1' },
+                            'searchTokens' => { 'M' => { 'name' => { 'S' => 'a' } } },
+                            'status' => { 'S' => 'active' } }
+          }
+        ) },
+        { 'body' => JSON.generate(
+          'eventName' => 'INSERT', 'dynamodb' => {
+            'NewImage' => { 'id' => { 'S' => 'i2' }, 'userId' => { 'S' => 'o2' },
+                            'searchTokens' => { 'M' => { 'name' => { 'S' => 'b' } } },
+                            'status' => { 'S' => 'active' } }
+          }
+        ) }
       ]
 
       grouped = parser_instance.group_changes(sqs_records)
@@ -68,9 +81,12 @@ RSpec.describe S3arch::Indexer::StreamParser do
 
     it 'skips records without owner_id' do
       sqs_records = [
-        { 'body' => JSON.generate('eventName' => 'INSERT', 'dynamodb' => {
-          'NewImage' => { 'id' => { 'S' => 'i1' }, 'searchTokens' => { 'M' => { 'name' => { 'S' => 'orphan' } } } }
-        }) }
+        { 'body' => JSON.generate(
+          'eventName' => 'INSERT', 'dynamodb' => {
+            'NewImage' => { 'id' => { 'S' => 'i1' },
+                            'searchTokens' => { 'M' => { 'name' => { 'S' => 'orphan' } } } }
+          }
+        ) }
       ]
 
       grouped = parser_instance.group_changes(sqs_records)
@@ -79,10 +95,13 @@ RSpec.describe S3arch::Indexer::StreamParser do
 
     it 'handles REMOVE events using OldImage' do
       sqs_records = [
-        { 'body' => JSON.generate('eventName' => 'REMOVE', 'dynamodb' => {
-          'OldImage' => { 'id' => { 'S' => 'i1' }, 'userId' => { 'S' => 'o1' },
-                          'searchTokens' => { 'M' => { 'name' => { 'S' => 'deleted' } } }, 'status' => { 'S' => 'active' } }
-        }) }
+        { 'body' => JSON.generate(
+          'eventName' => 'REMOVE', 'dynamodb' => {
+            'OldImage' => { 'id' => { 'S' => 'i1' }, 'userId' => { 'S' => 'o1' },
+                            'searchTokens' => { 'M' => { 'name' => { 'S' => 'deleted' } } },
+                            'status' => { 'S' => 'active' } }
+          }
+        ) }
       ]
 
       grouped = parser_instance.group_changes(sqs_records)
@@ -92,12 +111,16 @@ RSpec.describe S3arch::Indexer::StreamParser do
 
     it 'handles MODIFY events with old and new tokens' do
       sqs_records = [
-        { 'body' => JSON.generate('eventName' => 'MODIFY', 'dynamodb' => {
-          'OldImage' => { 'id' => { 'S' => 'i1' }, 'userId' => { 'S' => 'o1' },
-                          'searchTokens' => { 'M' => { 'name' => { 'S' => 'old name' } } }, 'status' => { 'S' => 'active' } },
-          'NewImage' => { 'id' => { 'S' => 'i1' }, 'userId' => { 'S' => 'o1' },
-                          'searchTokens' => { 'M' => { 'name' => { 'S' => 'new name' } } }, 'status' => { 'S' => 'active' } }
-        }) }
+        { 'body' => JSON.generate(
+          'eventName' => 'MODIFY', 'dynamodb' => {
+            'OldImage' => { 'id' => { 'S' => 'i1' }, 'userId' => { 'S' => 'o1' },
+                            'searchTokens' => { 'M' => { 'name' => { 'S' => 'old name' } } },
+                            'status' => { 'S' => 'active' } },
+            'NewImage' => { 'id' => { 'S' => 'i1' }, 'userId' => { 'S' => 'o1' },
+                            'searchTokens' => { 'M' => { 'name' => { 'S' => 'new name' } } },
+                            'status' => { 'S' => 'active' } }
+          }
+        ) }
       ]
 
       grouped = parser_instance.group_changes(sqs_records)
@@ -122,19 +145,25 @@ RSpec.describe S3arch::Indexer::StreamParser do
 
       klass = Class.new do
         include S3arch::Indexer::StreamParser
+
         attr_accessor :config
-        def initialize(c) = @config = c
+
+        def initialize(cfg) = @config = cfg
         public :group_changes
       end
       parser = klass.new(config)
 
       sqs_records = [
-        { 'body' => JSON.generate('eventName' => 'MODIFY', 'dynamodb' => {
-          'OldImage' => { 'id' => { 'S' => 'i1' }, 'userId' => { 'S' => 'o1' },
-                          'searchTokens' => { 'M' => { 'name' => { 'S' => 'thing' } } }, 'status' => { 'S' => 'active' } },
-          'NewImage' => { 'id' => { 'S' => 'i1' }, 'userId' => { 'S' => 'o1' },
-                          'searchTokens' => { 'M' => { 'name' => { 'S' => 'thing' } } }, 'status' => { 'S' => 'archived' } }
-        }) }
+        { 'body' => JSON.generate(
+          'eventName' => 'MODIFY', 'dynamodb' => {
+            'OldImage' => { 'id' => { 'S' => 'i1' }, 'userId' => { 'S' => 'o1' },
+                            'searchTokens' => { 'M' => { 'name' => { 'S' => 'thing' } } },
+                            'status' => { 'S' => 'active' } },
+            'NewImage' => { 'id' => { 'S' => 'i1' }, 'userId' => { 'S' => 'o1' },
+                            'searchTokens' => { 'M' => { 'name' => { 'S' => 'thing' } } },
+                            'status' => { 'S' => 'archived' } }
+          }
+        ) }
       ]
 
       grouped = parser.group_changes(sqs_records)
@@ -145,12 +174,16 @@ RSpec.describe S3arch::Indexer::StreamParser do
       S3arch.configuration.record_filter = ->(item) { item['status'] == 'active' }
 
       sqs_records = [
-        { 'body' => JSON.generate('eventName' => 'MODIFY', 'dynamodb' => {
-          'OldImage' => { 'id' => { 'S' => 'i1' }, 'userId' => { 'S' => 'o1' },
-                          'searchTokens' => { 'M' => { 'name' => { 'S' => 'thing' } } }, 'status' => { 'S' => 'archived' } },
-          'NewImage' => { 'id' => { 'S' => 'i1' }, 'userId' => { 'S' => 'o1' },
-                          'searchTokens' => { 'M' => { 'name' => { 'S' => 'thing' } } }, 'status' => { 'S' => 'active' } }
-        }) }
+        { 'body' => JSON.generate(
+          'eventName' => 'MODIFY', 'dynamodb' => {
+            'OldImage' => { 'id' => { 'S' => 'i1' }, 'userId' => { 'S' => 'o1' },
+                            'searchTokens' => { 'M' => { 'name' => { 'S' => 'thing' } } },
+                            'status' => { 'S' => 'archived' } },
+            'NewImage' => { 'id' => { 'S' => 'i1' }, 'userId' => { 'S' => 'o1' },
+                            'searchTokens' => { 'M' => { 'name' => { 'S' => 'thing' } } },
+                            'status' => { 'S' => 'active' } }
+          }
+        ) }
       ]
 
       grouped = parser_instance.group_changes(sqs_records)

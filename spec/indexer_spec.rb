@@ -36,8 +36,10 @@ RSpec.describe S3arch::Indexer do
   describe '#rebuild' do
     let(:records) do
       [
-        { 'id' => 'item-1', 'userId' => 'owner-1', 'searchTokens' => { 'name' => 'blue chair', 'description' => 'comfy' }, 'status' => 'active' },
-        { 'id' => 'item-2', 'userId' => 'owner-1', 'searchTokens' => { 'name' => 'red table', 'description' => 'wooden' }, 'status' => 'active' }
+        { 'id' => 'item-1', 'userId' => 'owner-1',
+          'searchTokens' => { 'name' => 'blue chair', 'description' => 'comfy' }, 'status' => 'active' },
+        { 'id' => 'item-2', 'userId' => 'owner-1',
+          'searchTokens' => { 'name' => 'red table', 'description' => 'wooden' }, 'status' => 'active' }
       ]
     end
 
@@ -51,30 +53,30 @@ RSpec.describe S3arch::Indexer do
       indexer.rebuild('owner-1')
 
       expect(dynamodb).to have_received(:query).with(hash_including(
-        table_name: 'test-items',
-        index_name: 'UserIndex',
-        key_condition_expression: 'userId = :owner',
-        expression_attribute_values: { ':owner' => 'owner-1' }
-      ))
+                                                       table_name: 'test-items',
+                                                       index_name: 'UserIndex',
+                                                       key_condition_expression: 'userId = :owner',
+                                                       expression_attribute_values: { ':owner' => 'owner-1' }
+                                                     ))
     end
 
     it 'uploads SQLite database to S3' do
       indexer.rebuild('owner-1')
 
       expect(s3).to have_received(:put_object).with(hash_including(
-        bucket: 'test-bucket',
-        key: 'owner-1/index.sqlite3'
-      ))
+                                                      bucket: 'test-bucket',
+                                                      key: 'owner-1/index.sqlite3'
+                                                    ))
     end
 
     it 'increments version in DynamoDB' do
       indexer.rebuild('owner-1')
 
       expect(dynamodb).to have_received(:update_item).with(hash_including(
-        table_name: 'test-versions',
-        key: { 'userId' => 'owner-1' },
-        expression_attribute_values: hash_including(':count' => 2)
-      ))
+                                                             table_name: 'test-versions',
+                                                             key: { 'userId' => 'owner-1' },
+                                                             expression_attribute_values: hash_including(':count' => 2)
+                                                           ))
     end
 
     it 'builds a valid SQLite FTS5 database' do
@@ -88,7 +90,7 @@ RSpec.describe S3arch::Indexer do
 
       db = SQLite3::Database.new(db_path)
       db.results_as_hash = true
-      results = db.execute("SELECT * FROM records_meta")
+      results = db.execute('SELECT * FROM records_meta')
       expect(results.size).to eq(2)
       expect(results.map { |r| r['record_id'] }).to contain_exactly('item-1', 'item-2')
       db.close
@@ -104,29 +106,32 @@ RSpec.describe S3arch::Indexer do
 
       expect(dynamodb).to have_received(:query).twice
       expect(dynamodb).to have_received(:update_item).with(hash_including(
-        expression_attribute_values: hash_including(':count' => 2)
-      ))
+                                                             expression_attribute_values: hash_including(':count' => 2)
+                                                           ))
     end
 
     it 'respects record_filter' do
       config.record_filter = ->(item) { item['status'] == 'active' }
       filtered_indexer = described_class.new(config: config)
       filtered_records = [
-        { 'id' => 'item-1', 'userId' => 'owner-1', 'searchTokens' => { 'name' => 'blue', 'description' => '' }, 'status' => 'active' },
-        { 'id' => 'item-2', 'userId' => 'owner-1', 'searchTokens' => { 'name' => 'red', 'description' => '' }, 'status' => 'archived' }
+        { 'id' => 'item-1', 'userId' => 'owner-1', 'searchTokens' => { 'name' => 'blue', 'description' => '' },
+          'status' => 'active' },
+        { 'id' => 'item-2', 'userId' => 'owner-1', 'searchTokens' => { 'name' => 'red', 'description' => '' },
+          'status' => 'archived' }
       ]
       allow(dynamodb).to receive(:query).and_return(double(items: filtered_records, last_evaluated_key: nil))
 
       filtered_indexer.rebuild('owner-1')
 
       expect(dynamodb).to have_received(:update_item).with(hash_including(
-        expression_attribute_values: hash_including(':count' => 1)
-      ))
+                                                             expression_attribute_values: hash_including(':count' => 1)
+                                                           ))
     end
 
     it 'falls back to searchable_fields when searchTokens is empty' do
       records_without_tokens = [
-        { 'id' => 'item-1', 'userId' => 'owner-1', 'searchTokens' => {}, 'name' => 'fallback name', 'description' => 'fallback desc', 'status' => 'active' }
+        { 'id' => 'item-1', 'userId' => 'owner-1', 'searchTokens' => {}, 'name' => 'fallback name',
+          'description' => 'fallback desc', 'status' => 'active' }
       ]
       allow(dynamodb).to receive(:query).and_return(double(items: records_without_tokens, last_evaluated_key: nil))
 
@@ -163,9 +168,9 @@ RSpec.describe S3arch::Indexer do
       reserved_indexer.rebuild('owner-1')
 
       expect(dynamodb).to have_received(:query).with(hash_including(
-        key_condition_expression: '#status = :owner',
-        expression_attribute_names: hash_including('#status' => 'status')
-      ))
+                                                       key_condition_expression: '#status = :owner',
+                                                       expression_attribute_names: hash_including('#status' => 'status')
+                                                     ))
     end
   end
 
@@ -196,13 +201,14 @@ RSpec.describe S3arch::Indexer do
       end
       allow(s3).to receive(:put_object)
 
-      changes = [{ action: :insert, record_id: 'item-2', tokens: { 'name' => 'red table', 'description' => 'wooden' }, meta: { 'status' => 'active' } }]
+      changes = [{ action: :insert, record_id: 'item-2', tokens: { 'name' => 'red table', 'description' => 'wooden' },
+                   meta: { 'status' => 'active' } }]
       indexer.apply_changes('owner-1', changes)
 
       expect(s3).to have_received(:put_object)
       expect(dynamodb).to have_received(:update_item).with(hash_including(
-        expression_attribute_values: hash_including(':count' => 2)
-      ))
+                                                             expression_attribute_values: hash_including(':count' => 2)
+                                                           ))
     end
 
     it 'applies delete changes' do
@@ -211,12 +217,13 @@ RSpec.describe S3arch::Indexer do
       end
       allow(s3).to receive(:put_object)
 
-      changes = [{ action: :delete, record_id: 'item-1', tokens: { 'name' => 'blue chair', 'description' => 'comfy seat' } }]
+      changes = [{ action: :delete, record_id: 'item-1',
+                   tokens: { 'name' => 'blue chair', 'description' => 'comfy seat' } }]
       indexer.apply_changes('owner-1', changes)
 
       expect(dynamodb).to have_received(:update_item).with(hash_including(
-        expression_attribute_values: hash_including(':count' => 0)
-      ))
+                                                             expression_attribute_values: hash_including(':count' => 0)
+                                                           ))
     end
 
     it 'applies update changes' do
@@ -240,7 +247,8 @@ RSpec.describe S3arch::Indexer do
       allow(dynamodb).to receive(:query).and_return(double(items: [], last_evaluated_key: nil))
       allow(s3).to receive(:put_object)
 
-      changes = [{ action: :insert, record_id: 'item-2', tokens: { 'name' => 'test', 'description' => '' }, meta: { 'status' => 'active' } }]
+      changes = [{ action: :insert, record_id: 'item-2', tokens: { 'name' => 'test', 'description' => '' },
+                   meta: { 'status' => 'active' } }]
       indexer.apply_changes('owner-1', changes)
 
       # Should have done a full rebuild (query + put)
@@ -261,8 +269,8 @@ RSpec.describe S3arch::Indexer do
       indexer.apply_changes('owner-1', changes)
 
       expect(dynamodb).to have_received(:update_item).with(hash_including(
-        expression_attribute_values: hash_including(':count' => 2)
-      ))
+                                                             expression_attribute_values: hash_including(':count' => 2)
+                                                           ))
     end
   end
 
@@ -305,14 +313,16 @@ RSpec.describe S3arch::Indexer do
             'body' => JSON.generate(
               'eventName' => 'INSERT',
               'dynamodb' => { 'NewImage' => { 'id' => { 'S' => 'i1' }, 'userId' => { 'S' => 'o1' },
-                                              'searchTokens' => { 'M' => { 'name' => { 'S' => 'a' } } }, 'status' => { 'S' => 'active' } } }
+                                              'searchTokens' => { 'M' => { 'name' => { 'S' => 'a' } } },
+                                              'status' => { 'S' => 'active' } } }
             )
           },
           {
             'body' => JSON.generate(
               'eventName' => 'INSERT',
               'dynamodb' => { 'NewImage' => { 'id' => { 'S' => 'i2' }, 'userId' => { 'S' => 'o2' },
-                                              'searchTokens' => { 'M' => { 'name' => { 'S' => 'b' } } }, 'status' => { 'S' => 'active' } } }
+                                              'searchTokens' => { 'M' => { 'name' => { 'S' => 'b' } } },
+                                              'status' => { 'S' => 'active' } } }
             )
           }
         ]
@@ -355,9 +365,11 @@ RSpec.describe S3arch::Indexer do
               'eventName' => 'MODIFY',
               'dynamodb' => {
                 'OldImage' => { 'id' => { 'S' => 'i1' }, 'userId' => { 'S' => 'o1' },
-                                'searchTokens' => { 'M' => { 'name' => { 'S' => 'old' } } }, 'status' => { 'S' => 'active' } },
+                                'searchTokens' => { 'M' => { 'name' => { 'S' => 'old' } } },
+                                'status' => { 'S' => 'active' } },
                 'NewImage' => { 'id' => { 'S' => 'i1' }, 'userId' => { 'S' => 'o1' },
-                                'searchTokens' => { 'M' => { 'name' => { 'S' => 'new' } } }, 'status' => { 'S' => 'active' } }
+                                'searchTokens' => { 'M' => { 'name' => { 'S' => 'new' } } },
+                                'status' => { 'S' => 'active' } }
               }
             )
           }
@@ -374,7 +386,8 @@ RSpec.describe S3arch::Indexer do
           {
             'body' => JSON.generate(
               'eventName' => 'INSERT',
-              'dynamodb' => { 'NewImage' => { 'id' => { 'S' => 'i1' }, 'searchTokens' => { 'M' => { 'name' => { 'S' => 'x' } } } } }
+              'dynamodb' => { 'NewImage' => { 'id' => { 'S' => 'i1' },
+                                              'searchTokens' => { 'M' => { 'name' => { 'S' => 'x' } } } } }
             )
           }
         ]
@@ -393,9 +406,11 @@ RSpec.describe S3arch::Indexer do
               'eventName' => 'MODIFY',
               'dynamodb' => {
                 'OldImage' => { 'id' => { 'S' => 'i1' }, 'userId' => { 'S' => 'o1' },
-                                'searchTokens' => { 'M' => { 'name' => { 'S' => 'old' } } }, 'status' => { 'S' => 'active' } },
+                                'searchTokens' => { 'M' => { 'name' => { 'S' => 'old' } } },
+                                'status' => { 'S' => 'active' } },
                 'NewImage' => { 'id' => { 'S' => 'i1' }, 'userId' => { 'S' => 'o1' },
-                                'searchTokens' => { 'M' => { 'name' => { 'S' => 'new' } } }, 'status' => { 'S' => 'active' } }
+                                'searchTokens' => { 'M' => { 'name' => { 'S' => 'new' } } },
+                                'status' => { 'S' => 'active' } }
               }
             )
           }
