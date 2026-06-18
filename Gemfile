@@ -7,6 +7,7 @@ gemspec
 group :development, :test do
   gem 'rack-test', '~> 2.0'
   gem 'rake', '~> 13.0'
+  gem 'rexml'
   gem 'rspec', '~> 3.0'
   gem 'rubocop', '~> 1.0', require: false
 end
