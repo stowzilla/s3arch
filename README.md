@@ -26,7 +26,7 @@ Each owner (user, tenant, account) gets their own SQLite database. The indexer r
 gem 's3arch'
 ```
 
-Requires the `sqlite3` native extension available at runtime. On Lambda, use a layer that provides it (e.g., [stowzilla-sqlite3-ruby](https://github.com/stowzilla/stowzilla-sqlite3-ruby)).
+Requires the `sqlite3` native extension available at runtime. On Lambda, build the layer with `rake lambda:build_layer` (see [Building the Lambda Layer](#building-the-lambda-layer)).
 
 ## Usage
 
@@ -139,6 +139,36 @@ Outputs include `indexer_env_vars`, `searcher_env_vars`, `indexer_permissions`, 
 5. Apply metadata filters, sort by rank, return record IDs
 6. LRU eviction when `/tmp` fills up
 
+## Building the Lambda Layer
+
+S3arch requires the `sqlite3` native extension at runtime. A Rake task is included to build and publish the Lambda layer:
+
+```bash
+# Build the layer zip (outputs to pkg/sqlite-layer.zip)
+rake lambda:build_layer
+
+# Build and publish in one step
+rake lambda:publish_layer PROFILE=devzilla
+
+# Customize the build
+rake lambda:build_layer RUBY_VERSION=3.4 ARCHITECTURE=x86_64
+
+# Publish to a specific region/account
+rake lambda:publish_layer PROFILE=production REGION=us-west-2 LAYER_NAME=stowzilla-sqlite3-ruby
+```
+
+| Environment Variable | Default | Description |
+|---------------------|---------|-------------|
+| `RUBY_VERSION` | `3.4` | Ruby runtime version |
+| `ARCHITECTURE` | `x86_64` | `x86_64` or `arm64` |
+| `OUTPUT` | `pkg/sqlite-layer.zip` | Output path for the zip |
+| `PROFILE` | (none) | AWS CLI profile for publishing |
+| `REGION` | `us-east-1` | AWS region to publish to |
+| `LAYER_NAME` | `stowzilla-sqlite3-ruby` | Layer name in AWS |
+| `S3ARCH_VERSION` | `~> current minor` | Version constraint for s3arch in the layer |
+
+Requires Docker to be running (uses the official AWS SAM build images).
+
 ## Requirements
 
 - Ruby >= 3.2
@@ -146,6 +176,7 @@ Outputs include `indexer_env_vars`, `searcher_env_vars`, `indexer_permissions`, 
 - SQLite3 native extension (via Lambda layer)
 - DynamoDB table with streams enabled
 - S3 bucket for index storage
+- Docker (for building the Lambda layer)
 
 ## License
 
