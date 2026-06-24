@@ -145,16 +145,16 @@ S3arch requires the `sqlite3` native extension at runtime. A Rake task is includ
 
 ```bash
 # Build the layer zip (outputs to pkg/sqlite-layer.zip)
-rake lambda:build_layer
+rake s3arch:layer:build
 
 # Build and publish in one step
-rake lambda:publish_layer PROFILE=devzilla
+rake s3arch:layer:publish PROFILE=devzilla
 
 # Customize the build
-rake lambda:build_layer RUBY_VERSION=3.4 ARCHITECTURE=x86_64
+rake s3arch:layer:build RUBY_VERSION=3.4 ARCHITECTURE=x86_64
 
 # Publish to a specific region/account
-rake lambda:publish_layer PROFILE=production REGION=us-west-2 LAYER_NAME=stowzilla-sqlite3-ruby
+rake s3arch:layer:publish PROFILE=production REGION=us-west-2 LAYER_NAME=stowzilla-sqlite3-ruby
 ```
 
 | Environment Variable | Default | Description |
@@ -168,6 +168,21 @@ rake lambda:publish_layer PROFILE=production REGION=us-west-2 LAYER_NAME=stowzil
 | `S3ARCH_VERSION` | `~> current minor` | Version constraint for s3arch in the layer |
 
 Requires Docker to be running (uses the official AWS SAM build images).
+
+## Rake Tasks
+
+```bash
+rake s3arch:layer:build    # Build the Lambda layer zip
+rake s3arch:layer:publish  # Build and publish to AWS
+rake s3arch:rebuild        # Rebuild index for an owner (OWNER_ID=xxx)
+rake s3arch:info           # Show config and version info
+```
+
+To make these tasks available in your app, add to your Rakefile:
+
+```ruby
+require 's3arch/tasks'
+```
 
 ## Requirements
 
