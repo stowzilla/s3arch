@@ -23,6 +23,7 @@ Metrics/BlockLength:
   Exclude:
     - 'spec/**/*'
     - '*.gemspec'
+    - '**/*.rake'
 
 Style/Documentation:
   Enabled: false
