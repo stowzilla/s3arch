@@ -93,25 +93,17 @@ indexer.rebuild("user-123")
 
 ## Infrastructure
 
-A Terraform module is provided at [`terraform/`](./terraform/) that provisions:
+S3arch infrastructure is defined using [Belt](https://github.com/stowzilla/belt) and [Conveyor Belt](https://github.com/stowzilla/terraform-provider-conveyor-belt) conventions:
+
+- **[`infrastructure/routes.tf.rb`](./infrastructure/routes.tf.rb)** — API Gateway routes for search and rebuild endpoints
+- **[`infrastructure/schema.tf.rb`](./infrastructure/schema.tf.rb)** — DynamoDB table definitions (request/response contracts)
+
+When using S3arch with a Belt app, these files are automatically picked up by `belt deploy`. For standalone use, you'll need to provision:
 
 - S3 bucket for index storage (with 90-day lifecycle)
 - DynamoDB version tracking table (PAY_PER_REQUEST)
 - SQS queue + DLQ for the indexer
 - EventBridge Pipe (DynamoDB Stream → SQS)
-
-```hcl
-module "s3arch" {
-  source                  = "github.com/stowzilla/s3arch//terraform"
-  app_name                = "myapp"
-  environment             = "production"
-  source_table_name       = aws_dynamodb_table.items.name
-  source_table_arn        = aws_dynamodb_table.items.arn
-  source_table_stream_arn = aws_dynamodb_table.items.stream_arn
-}
-```
-
-Outputs include `indexer_env_vars`, `searcher_env_vars`, `indexer_permissions`, and `searcher_permissions` for easy Lambda configuration.
 
 ## Configuration Options
 
@@ -148,13 +140,13 @@ S3arch requires the `sqlite3` native extension at runtime. A Rake task is includ
 rake s3arch:layer:build
 
 # Build and publish in one step
-rake s3arch:layer:publish PROFILE=devzilla
+rake s3arch:layer:publish PROFILE=your-profile
 
 # Customize the build
 rake s3arch:layer:build RUBY_VERSION=3.4 ARCHITECTURE=x86_64
 
 # Publish to a specific region/account
-rake s3arch:layer:publish PROFILE=production REGION=us-west-2 LAYER_NAME=stowzilla-sqlite3-ruby
+rake s3arch:layer:publish PROFILE=production REGION=us-west-2 LAYER_NAME=my-sqlite3-ruby
 ```
 
 | Environment Variable | Default | Description |
@@ -164,7 +156,7 @@ rake s3arch:layer:publish PROFILE=production REGION=us-west-2 LAYER_NAME=stowzil
 | `OUTPUT` | `pkg/sqlite-layer.zip` | Output path for the zip |
 | `PROFILE` | (none) | AWS CLI profile for publishing |
 | `REGION` | `us-east-1` | AWS region to publish to |
-| `LAYER_NAME` | `stowzilla-sqlite3-ruby` | Layer name in AWS |
+| `LAYER_NAME` | `sqlite3-ruby` | Layer name in AWS |
 | `S3ARCH_VERSION` | `~> current minor` | Version constraint for s3arch in the layer |
 
 Requires Docker to be running (uses the official AWS SAM build images).
