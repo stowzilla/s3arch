@@ -95,8 +95,8 @@ indexer.rebuild("user-123")
 
 S3arch infrastructure is defined using [Belt](https://github.com/stowzilla/belt) and [Conveyor Belt](https://github.com/stowzilla/terraform-provider-conveyor-belt) conventions:
 
-- **[`infrastructure/routes.tf.rb`](./infrastructure/routes.tf.rb)** — API Gateway routes for search and rebuild endpoints
-- **[`infrastructure/schema.tf.rb`](./infrastructure/schema.tf.rb)** — DynamoDB table definitions (request/response contracts)
+- **[`config/routes.rb`](./config/routes.rb)** — API Gateway routes for search and rebuild endpoints
+- **[`config/contracts.rb`](./config/contracts.rb)** — Request/response schema contracts
 
 When using S3arch with a Belt app, these files are automatically picked up by `belt deploy`. For standalone use, you'll need to provision:
 
