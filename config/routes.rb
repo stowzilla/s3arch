@@ -1,6 +1,6 @@
 # frozen_string_literal: true
 
-TerraDispatch.routes.draw do
+Belt.application.routes.draw do
   namespace :s3arch, auth: :cognito, tables: [:search_indexes] do
     get '/', action: 'index'
     post '/rebuild', action: 'rebuild'

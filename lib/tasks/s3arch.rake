@@ -127,9 +127,9 @@ namespace :s3arch do
       )
     end
 
-    desc 'Build and publish the Lambda layer (set AWS_PROFILE, LAYER_NAME=stowzilla-sqlite3-ruby)'
+    desc 'Build and publish the Lambda layer (set AWS_PROFILE, LAYER_NAME=sqlite3-ruby)'
     task publish: :build do
-      layer_name   = ENV.fetch('LAYER_NAME', 'stowzilla-sqlite3-ruby')
+      layer_name   = ENV.fetch('LAYER_NAME', 'sqlite3-ruby')
       ruby_version = ENV.fetch('RUBY_VERSION', '3.4')
       architecture = ENV.fetch('ARCHITECTURE', 'x86_64')
       output_file  = File.expand_path(ENV.fetch('OUTPUT', 'pkg/sqlite-layer.zip'))
